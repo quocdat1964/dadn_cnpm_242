@@ -9,6 +9,8 @@ class Record extends Model
     protected $fillable = [
         'sensor_id',
         'value',
+        // 'status',
         'recorded_at',
     ];
+
 }

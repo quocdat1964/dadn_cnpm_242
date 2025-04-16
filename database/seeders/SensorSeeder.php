@@ -11,12 +11,6 @@ class SensorSeeder extends Seeder
     {
         DB::table('sensors')->insert([
             [
-                'name' => 'Light',
-                'feed_key' => 'light',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
                 'name' => 'Soil Moisturer',
                 'feed_key' => 'soil-moisturer',
                 'created_at' => now(),
