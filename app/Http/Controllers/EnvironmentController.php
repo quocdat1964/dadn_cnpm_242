@@ -13,29 +13,16 @@ class EnvironmentController extends Controller
      * Yêu cầu JSON input:
      * {
      *   "feed_id": "temperature",   // hoặc "air-humidity", "soil-moisturer", "light"
-     *   "recorded_at": "2025-04-13 14:00:00"   // (optional) thời điểm đo; nếu không có thì dùng giờ hiện tại
-     * }
-     *
-     * Response JSON ví dụ:
-     * {
-     *    "success": true,
-     *    "data": {
-     *         "feed_id": "temperature",
-     *         "value": 24,
-     *         "recorded_at": "2025-04-13 14:00:00",
-     *         "status": "Ổn định"
-     *    }
+     *   "recorded_at": "2025-04-13 14:00:00"   // (optional)
      * }
      */
     public function fetchAndEvaluate(Request $request)
     {
-        // Validate input
         $data = $request->validate([
             'feed_id' => 'required|string',
-            'recorded_at' => 'nullable|date'
+            'recorded_at' => 'nullable|date',
         ]);
 
-        // Chuyển feed_id về chữ thường để nhất quán
         $feedKey = strtolower($data['feed_id']);
         $recordedAt = isset($data['recorded_at'])
             ? Carbon::parse($data['recorded_at'])
@@ -44,7 +31,6 @@ class EnvironmentController extends Controller
         $username = env('ADAFRUIT_IO_USERNAME');
         $aioKey = env('ADAFRUIT_IO_KEY');
 
-        // URL API từ Adafruit để lấy dữ liệu mới nhất cho feedKey
         $url = "https://io.adafruit.com/api/v2/{$username}/feeds/{$feedKey}/data?limit=1";
 
         $response = Http::withHeaders([
@@ -67,12 +53,11 @@ class EnvironmentController extends Controller
         }
 
         $value = floatval($results[0]['value'] ?? 0);
+        $status = null;
+        $warning = null; // Khởi tạo trước để không bị undefined
 
-        // Tính toán trạng thái dựa trên loại cảm biến và giá trị đo.
         switch ($feedKey) {
             case 'temperature':
-                // Xét khoảng nhiệt độ theo khung giờ đo:
-                // Ban ngày (6AM - 18PM): 21-25°C; Ban đêm (18PM - 6AM): 15-18°C
                 $hour = $recordedAt->hour;
                 if ($hour >= 6 && $hour < 18) {
                     $min = 21;
@@ -83,48 +68,58 @@ class EnvironmentController extends Controller
                 }
                 if ($value < $min) {
                     $status = "Quá thấp";
+                    $warning = "Cần kiểm tra hệ thống sưởi hoặc tăng nhiệt độ môi trường.";
                 } elseif ($value > $max) {
                     $status = "Quá cao";
+                    $warning = "Cần kiểm tra hệ thống làm mát hoặc giảm nhiệt độ môi trường.";
                 } else {
                     $status = "Ổn định";
+                    $warning = "Nhiệt độ trong khoảng lý tưởng.";
                 }
                 break;
 
             case 'air-humidity':
-                // Độ ẩm môi trường tối ưu: 60 - 70%
                 if ($value < 60) {
                     $status = "Quá thấp";
+                    $warning = "Cần tăng độ ẩm: phun sương hoặc đặt khay nước.";
                 } elseif ($value > 70) {
                     $status = "Quá cao";
+                    $warning = "Cần giảm độ ẩm: tăng thông gió hoặc giảm phun sương.";
                 } else {
                     $status = "Ổn định";
+                    $warning = "Độ ẩm không khí phù hợp.";
                 }
                 break;
 
             case 'soil-moisturer':
-                // Độ ẩm đất tối ưu: 60 - 80%
                 if ($value < 60) {
                     $status = "Quá thấp";
+                    $warning = "Cần tăng tưới nước cho đất.";
                 } elseif ($value > 80) {
                     $status = "Quá cao";
+                    $warning = "Cần giảm tần suất hoặc lượng tưới.";
                 } else {
                     $status = "Ổn định";
+                    $warning = "Độ ẩm đất trong khoảng an toàn.";
                 }
                 break;
 
             case 'light':
-                // Ánh sáng tối ưu: 100 - 300 lux
                 if ($value < 100) {
                     $status = "Quá thấp";
+                    $warning = "Cần tăng ánh sáng: đặt cây nơi có nắng hoặc bật đèn.";
                 } elseif ($value > 300) {
                     $status = "Quá cao";
+                    $warning = "Cần giảm cường độ ánh sáng hoặc che bớt nắng.";
                 } else {
                     $status = "Ổn định";
+                    $warning = "Ánh sáng phù hợp.";
                 }
                 break;
 
             default:
                 $status = "Chưa xác định";
+                $warning = "Feed không hợp lệ.";
                 break;
         }
 
@@ -135,10 +130,8 @@ class EnvironmentController extends Controller
                 'value' => $value,
                 'recorded_at' => $recordedAt->toDateTimeString(),
                 'status' => $status,
-            ]
+                'warning' => $warning,
+            ],
         ], 200);
     }
-
-
-
 }
