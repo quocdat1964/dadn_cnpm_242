@@ -1,11 +1,11 @@
 // src/pages/Data.jsx
 import React, { useState, useEffect, useCallback } from 'react';
-import Sidebar from '../Components/Sidebar';
+// XÓA: import Sidebar from '../Components/Sidebar'; // Không import Sidebar nữa
 import SensorChart from '../Components/SensorChart';
 import {
     FiSettings as PageSettingsIcon,
     FiBell,
-    FiMenu,
+    // XÓA: FiMenu, // Không cần FiMenu nếu bỏ nút toggle ở đây
     FiCalendar,
     FiChevronDown, // Icon cho dropdown
     FiLoader // Icon loading
@@ -13,7 +13,7 @@ import {
 import dayjs from 'dayjs'; // Thư viện xử lý ngày tháng
 import 'dayjs/locale/vi'; // Import locale tiếng Việt nếu muốn hiển thị tiếng Việt
 import { Menu, Transition } from '@headlessui/react'; // Dùng dropdown của Headless UI
-import { Fragment } from 'react';
+import { Fragment } from 'react'; // Import Fragment
 
 dayjs.locale('vi'); // Set locale (optional)
 
@@ -33,13 +33,13 @@ const dateOptions = {
 };
 
 const Data = () => {
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    // XÓA: const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [selectedPeriod, setSelectedPeriod] = useState(dateOptions.today.value); // 'today', 'yesterday', ...
     const [chartData, setChartData] = useState({}); // { temperature: { labels: [], values: [] }, ... }
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+    // XÓA: const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
     // Hàm lấy dữ liệu (Memoized để tránh tạo lại không cần thiết)
     const fetchData = useCallback(async (period) => {
@@ -83,7 +83,7 @@ const Data = () => {
             };
 
             const mockApiResponse = {
-                temperature: generateMockData(28, 5),     // Nhiệt độ ~28 độ, dao động 5
+                temperature: generateMockData(28, 5),      // Nhiệt độ ~28 độ, dao động 5
                 humidity: generateMockData(65, 15),       // Độ ẩm ~65%, dao động 15
                 soil_moisture: generateMockData(50, 20), // Độ ẩm đất ~50%, dao động 20
                 light: generateMockData(600, 400),      // Ánh sáng ~600 Lux, dao động 400
@@ -94,25 +94,25 @@ const Data = () => {
             // --- THAY THẾ BẰNG API CALL THẬT ---
             const response = await fetch(`/api/sensor-history?date=${dateString}`); // Thay đổi endpoint nếu cần
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             const apiData = await response.json();
 
             // Xử lý dữ liệu API thật thành định dạng chartData
             const processedData = {};
             sensorTypes.forEach(sensor => {
-                const sensorApiData = apiData[sensor.id] || []; // Lấy dữ liệu cho sensor từ API
-                processedData[sensor.id] = {
-                    labels: sensorApiData.map(d => dayjs(d.timestamp).format('HH:mm')), // Lấy giờ:phút
-                    values: sensorApiData.map(d => d.value)
-                };
+                 const sensorApiData = apiData[sensor.id] || []; // Lấy dữ liệu cho sensor từ API
+                 processedData[sensor.id] = {
+                      labels: sensorApiData.map(d => dayjs(d.timestamp).format('HH:mm')), // Lấy giờ:phút
+                      values: sensorApiData.map(d => d.value)
+                 };
             });
             setChartData(processedData);
             // --- KẾT THÚC API CALL THẬT ---
             */
 
            // Sử dụng dữ liệu giả lập
-            setChartData(mockApiResponse);
+           setChartData(mockApiResponse);
 
         } catch (err) {
             console.error("Failed to fetch sensor data:", err);
@@ -134,17 +134,21 @@ const Data = () => {
     };
 
     return (
-        <div className="flex h-screen w-screen bg-gray-100 overflow-hidden">
-            <Sidebar isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} /* activeItem="DATA" */ />
+        // Sử dụng Fragment thay cho div bao ngoài
+        <Fragment>
+            {/* XÓA: <Sidebar isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} /> */}
 
-            <main className="flex-1 flex flex-col overflow-y-auto">
+            {/* <main className="flex-1 flex flex-col overflow-y-auto"> -> Không cần thẻ main này nếu App.js đã cấu trúc layout */}
                 {/* Header */}
                 <header className="flex items-center justify-between p-5 border-b bg-white sticky top-0 z-20">
                     <div className="flex items-center">
-                        <button onClick={toggleSidebar} className="text-gray-600 hover:text-gray-900 focus:outline-none lg:hidden mr-4" aria-label="Open sidebar">
-                            <FiMenu size={24} />
-                        </button>
-                        <h1 className="text-2xl font-bold text-gray-800">LỊCH SỬ CÁC THÔNG SỐ</h1>
+                         {/* XÓA: Nút toggle menu cho mobile ở đây */}
+                         {/*
+                         <button onClick={toggleSidebar} className="text-gray-600 hover:text-gray-900 focus:outline-none lg:hidden mr-4" aria-label="Open sidebar">
+                             <FiMenu size={24} />
+                         </button>
+                          */}
+                         <h1 className="text-2xl font-bold text-gray-800">LỊCH SỬ CÁC THÔNG SỐ</h1>
                     </div>
                     <div className="flex items-center space-x-4">
                          {/* Date Selector Dropdown */}
@@ -202,25 +206,25 @@ const Data = () => {
                     {loading && (
                         <div className="flex justify-center items-center h-full">
                            <FiLoader className="animate-spin text-blue-500 mr-3" size={24} />
-                            <p className="text-gray-600">Đang tải dữ liệu...</p>
+                           <p className="text-gray-600">Đang tải dữ liệu...</p>
                         </div>
                     )}
                     {error && (
                         <div className="text-center text-red-600 bg-red-100 p-4 rounded border border-red-300">
-                            <p><strong>Lỗi:</strong> {error}</p>
+                           <p><strong>Lỗi:</strong> {error}</p>
                         </div>
                     )}
                     {!loading && !error && Object.keys(chartData).length > 0 && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                           {sensorTypes.map(sensor => (
-                               <SensorChart
-                                   key={sensor.id}
-                                   title={sensor.name}
-                                   chartData={chartData[sensor.id] || { labels: [], values: [] }} // Truyền dữ liệu tương ứng
-                                   yAxisLabel={sensor.unit}
-                                   lineColor={sensor.color}
-                               />
-                           ))}
+                            {sensorTypes.map(sensor => (
+                                <SensorChart
+                                    key={sensor.id}
+                                    title={sensor.name}
+                                    chartData={chartData[sensor.id] || { labels: [], values: [] }} // Truyền dữ liệu tương ứng
+                                    yAxisLabel={sensor.unit}
+                                    lineColor={sensor.color}
+                                />
+                            ))}
                         </div>
                     )}
                      {!loading && !error && Object.keys(chartData).length === 0 && (
@@ -230,8 +234,8 @@ const Data = () => {
                         </div>
                     )}
                 </div>
-            </main>
-        </div>
+            {/* </main> */}
+        </Fragment> // Đóng Fragment
     );
 };
 

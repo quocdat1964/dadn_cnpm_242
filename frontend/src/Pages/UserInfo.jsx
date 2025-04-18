@@ -1,12 +1,12 @@
 // src/pages/UserInfo.jsx
-import React, { useState, useEffect, useCallback } from 'react';
-import Sidebar from '../Components/Sidebar';
+import React, { useState, useEffect, useCallback, Fragment } from 'react'; // Import Fragment
+// XÓA: import Sidebar from '../Components/Sidebar'; // Không import Sidebar nữa
 import axios from 'axios'; // Or use fetch
 import dayjs from 'dayjs';
 import {
     FiSettings as PageSettingsIcon,
     FiBell,
-    FiMenu,
+    // XÓA: FiMenu, // Không cần FiMenu nếu nút toggle đã có ở App.js
     FiEdit,
     FiMail,
     FiPhone,
@@ -18,7 +18,7 @@ import {
     FiEyeOff
 } from 'react-icons/fi';
 
-// Component nhỏ để hiển thị trường thông tin (có thể tách file riêng)
+// Component nhỏ để hiển thị trường thông tin (giữ nguyên)
 const ProfileField = ({ label, value, name, isEditing, onChange, inputType = 'text', readOnly = false, children }) => {
     if (isEditing && !readOnly) {
         return (
@@ -46,14 +46,13 @@ const ProfileField = ({ label, value, name, isEditing, onChange, inputType = 'te
             ) : (
                  <p className="text-sm text-gray-800 col-span-2">{value || 'N/A'}</p>
             )}
-
         </div>
     );
 };
 
 
 const UserInfo = () => {
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    // XÓA: const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [userData, setUserData] = useState(null);
     const [activityLogs, setActivityLogs] = useState([]);
     const [formData, setFormData] = useState({}); // Dữ liệu tạm thời khi sửa
@@ -65,10 +64,9 @@ const UserInfo = () => {
     const [isSubmitting, setIsSubmitting] = useState(false); // Loading khi submit
     const [showPassword, setShowPassword] = useState(false);
 
+    // XÓA: const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
-    const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
-
-    // Fetch initial data
+    // Fetch initial data (giữ nguyên)
     useEffect(() => {
         const fetchUserData = async () => {
             setLoading(true);
@@ -115,7 +113,7 @@ const UserInfo = () => {
         fetchUserData();
     }, []);
 
-    // Hàm xử lý khi nhấn nút sửa
+    // Hàm xử lý khi nhấn nút sửa (giữ nguyên)
     const handleEditClick = (section) => {
         if (!userData) return;
         setError(null); // Clear error cũ
@@ -140,7 +138,7 @@ const UserInfo = () => {
         }
     };
 
-    // Hàm xử lý khi nhấn nút hủy
+    // Hàm xử lý khi nhấn nút hủy (giữ nguyên)
     const handleCancelEdit = () => {
         setIsEditingInfo(false);
         setIsEditingAccount(false);
@@ -148,13 +146,13 @@ const UserInfo = () => {
         setError(null);
     };
 
-    // Hàm xử lý khi thay đổi input
+    // Hàm xử lý khi thay đổi input (giữ nguyên)
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    // Hàm xử lý khi lưu (chung, gọi hàm cụ thể)
+    // Hàm xử lý khi lưu (chung, gọi hàm cụ thể) (giữ nguyên)
     const handleSave = async (section) => {
         setIsSubmitting(true);
         setError(null);
@@ -173,15 +171,15 @@ const UserInfo = () => {
             // --- API Call Thật ---
             let response;
             if (section === 'info') {
-                response = await axios.put('/api/user/profile', { // Thay endpoint
-                    name: formData.name,
-                    gender: formData.gender,
-                     // Gửi các trường khác đã sửa
-                });
-            } else if (section === 'account') {
-                 response = await axios.put('/api/user/account', { // Thay endpoint
-                    username: formData.username,
+                 response = await axios.put('/api/user/profile', { // Thay endpoint
+                      name: formData.name,
+                      gender: formData.gender,
+                       // Gửi các trường khác đã sửa
                  });
+            } else if (section === 'account') {
+                  response = await axios.put('/api/user/account', { // Thay endpoint
+                      username: formData.username,
+                  });
             }
              const updatedUserData = response.data; // Lấy dữ liệu mới từ API (nếu có)
             */
@@ -202,7 +200,7 @@ const UserInfo = () => {
         }
     };
 
-
+    // Phần xử lý loading và error ban đầu (giữ nguyên)
     if (loading) {
         return (
             <div className="flex h-screen w-screen items-center justify-center bg-gray-100">
@@ -212,7 +210,7 @@ const UserInfo = () => {
         );
     }
 
-     if (error && !userData) { // Lỗi nghiêm trọng không tải được dữ liệu ban đầu
+    if (error && !userData) { // Lỗi nghiêm trọng không tải được dữ liệu ban đầu
         return (
             <div className="flex h-screen w-screen items-center justify-center bg-red-100 text-red-700 p-10">
                  <p><strong>Lỗi:</strong> {error}</p>
@@ -220,19 +218,26 @@ const UserInfo = () => {
         )
      }
 
-
+    // --- Phần JSX ---
     return (
-        <div className="flex h-screen w-screen bg-gray-100 overflow-hidden">
-            <Sidebar isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} activeItem="USER" />
+        // XÓA: <div className="flex h-screen w-screen bg-gray-100 overflow-hidden">
+        // Sử dụng Fragment thay thế
+        <Fragment>
+            {/* XÓA: Dòng render Sidebar */}
+            {/* <Sidebar isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} activeItem="USER" /> */}
 
-            <main className="flex-1 flex flex-col overflow-y-auto">
+            {/* XÓA: <main className="flex-1 flex flex-col overflow-y-auto"> -> Không cần thẻ main nếu App.js đã có layout */}
                 {/* Standard Header */}
                 <header className="flex items-center justify-between p-5 border-b bg-white sticky top-0 z-20">
                     <div className="flex items-center">
-                        <button onClick={toggleSidebar} className="text-gray-600 hover:text-gray-900 focus:outline-none lg:hidden mr-4" aria-label="Open sidebar">
-                            <FiMenu size={24} />
-                        </button>
-                        {/* Có thể thêm tiêu đề trang ở đây nếu muốn */}
+                         {/* XÓA: Nút toggle menu cho mobile */}
+                         {/*
+                         <button onClick={toggleSidebar} className="text-gray-600 hover:text-gray-900 focus:outline-none lg:hidden mr-4" aria-label="Open sidebar">
+                             <FiMenu size={24} />
+                         </button>
+                         */}
+                         {/* Thêm tiêu đề trang nếu muốn, ví dụ: */}
+                         <h1 className="text-xl font-semibold text-gray-800">Thông tin người dùng</h1>
                     </div>
                     <div className="flex items-center space-x-4">
                         <button className="text-gray-500 hover:text-gray-700">
@@ -286,7 +291,7 @@ const UserInfo = () => {
                         {/* Right Side: Details & Logs */}
                         <section className="flex-1 space-y-8">
                              {/* User Information Section */}
-                             <div className="bg-white p-6 rounded-lg shadow">
+                            <div className="bg-white p-6 rounded-lg shadow">
                                 <div className="flex justify-between items-center mb-4 pb-2 border-b">
                                     <h3 className="text-lg font-semibold text-gray-700">User Information</h3>
                                     {!isEditingInfo ? (
@@ -296,12 +301,12 @@ const UserInfo = () => {
                                     ) : (
                                          <div className="flex space-x-3">
                                              <button onClick={handleCancelEdit} className="text-gray-600 hover:text-gray-800" aria-label="Cancel Edit">
-                                                <FiXCircle size={20} />
-                                            </button>
-                                            <button onClick={() => handleSave('info')} className="text-green-600 hover:text-green-800 disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Save User Information" disabled={isSubmitting}>
-                                                {isSubmitting ? <FiLoader className="animate-spin" size={20}/> : <FiSave size={20} />}
-                                            </button>
-                                        </div>
+                                                 <FiXCircle size={20} />
+                                             </button>
+                                             <button onClick={() => handleSave('info')} className="text-green-600 hover:text-green-800 disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Save User Information" disabled={isSubmitting}>
+                                                 {isSubmitting ? <FiLoader className="animate-spin" size={20}/> : <FiSave size={20} />}
+                                             </button>
+                                         </div>
                                     )}
                                 </div>
                                 <ProfileField label="Name" name="name" value={isEditingInfo ? formData.name : userData?.name} isEditing={isEditingInfo} onChange={handleInputChange} />
@@ -310,7 +315,7 @@ const UserInfo = () => {
                              </div>
 
                              {/* Account Detail Section */}
-                             <div className="bg-white p-6 rounded-lg shadow">
+                            <div className="bg-white p-6 rounded-lg shadow">
                                 <div className="flex justify-between items-center mb-4 pb-2 border-b">
                                     <h3 className="text-lg font-semibold text-gray-700">Account Detail</h3>
                                      {!isEditingAccount ? (
@@ -320,22 +325,22 @@ const UserInfo = () => {
                                      ) : (
                                          <div className="flex space-x-3">
                                              <button onClick={handleCancelEdit} className="text-gray-600 hover:text-gray-800" aria-label="Cancel Edit">
-                                                <FiXCircle size={20} />
-                                            </button>
-                                            <button onClick={() => handleSave('account')} className="text-green-600 hover:text-green-800 disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Save Account Detail" disabled={isSubmitting}>
-                                                {isSubmitting ? <FiLoader className="animate-spin" size={20}/> : <FiSave size={20} />}
-                                            </button>
-                                        </div>
+                                                 <FiXCircle size={20} />
+                                             </button>
+                                             <button onClick={() => handleSave('account')} className="text-green-600 hover:text-green-800 disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Save Account Detail" disabled={isSubmitting}>
+                                                 {isSubmitting ? <FiLoader className="animate-spin" size={20}/> : <FiSave size={20} />}
+                                             </button>
+                                         </div>
                                      )}
                                 </div>
                                 <ProfileField label="Username" name="username" value={isEditingAccount ? formData.username : userData?.username} isEditing={isEditingAccount} onChange={handleInputChange} />
                                 {/* Password Field - Display Only with toggle */}
                                 <ProfileField label="Password" readOnly={true} isEditing={isEditingAccount}>
                                      <div className="flex items-center justify-between">
-                                        <span>{showPassword ? 'Mật khẩu hiện tại' : '******'}</span> {/* Không hiển thị pass thật */}
-                                        <button onClick={() => setShowPassword(!showPassword)} className='text-gray-500 hover:text-gray-700 ml-2'>
-                                            {showPassword ? <FiEyeOff size={16}/> : <FiEye size={16}/>}
-                                        </button>
+                                         <span>{showPassword ? 'Mật khẩu hiện tại' : '******'}</span> {/* Không hiển thị pass thật */}
+                                         <button onClick={() => setShowPassword(!showPassword)} className='text-gray-500 hover:text-gray-700 ml-2'>
+                                             {showPassword ? <FiEyeOff size={16}/> : <FiEye size={16}/>}
+                                         </button>
                                      </div>
                                 </ProfileField>
                                 {/* Thêm nút "Đổi mật khẩu" riêng biệt ở đây nếu cần */}
@@ -343,7 +348,7 @@ const UserInfo = () => {
                              </div>
 
                              {/* Activity Logs Section */}
-                             <div className="bg-white p-6 rounded-lg shadow">
+                            <div className="bg-white p-6 rounded-lg shadow">
                                  <h3 className="text-lg font-semibold text-gray-700 mb-4">Activity Logs</h3>
                                  <div className="overflow-x-auto"> {/* Cho phép cuộn ngang trên màn hình nhỏ */}
                                      <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -362,9 +367,9 @@ const UserInfo = () => {
                                                      <td className="px-4 py-2 text-gray-800">{log.message}</td>
                                                  </tr>
                                              )) : (
-                                                <tr>
-                                                    <td colSpan="3" className='text-center py-4 text-gray-500'>Không có nhật ký hoạt động nào.</td>
-                                                </tr>
+                                                 <tr>
+                                                      <td colSpan="3" className='text-center py-4 text-gray-500'>Không có nhật ký hoạt động nào.</td>
+                                                 </tr>
                                              )}
                                          </tbody>
                                      </table>
@@ -373,8 +378,9 @@ const UserInfo = () => {
                         </section>
                     </div>
                 </div>
-            </main>
-        </div>
+            {/* XÓA: </main> */}
+        </Fragment> // Đóng Fragment
+       // XÓA: </div> // Xóa thẻ div bao ngoài cùng
     );
 };
 
