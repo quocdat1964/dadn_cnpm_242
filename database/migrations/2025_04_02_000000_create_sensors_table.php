@@ -13,10 +13,14 @@ return new class extends Migration {
             $table->string('feed_key')->unique(); // Tên feed Adafruit IO
             $table->timestamps(); // created_at, updated_at
         });
+
+
     }
 
     public function down(): void
     {
         Schema::dropIfExists('sensors');
     }
+
+
 };

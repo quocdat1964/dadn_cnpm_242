@@ -14,18 +14,35 @@ class AdafruitController extends Controller
     {
         $this->adafruitService = $adafruitService;
     }
-    public function getFeedData($feed)
+    /**
+     * GET /api/sensors/adafruit/latest?feed_key={feed_key}
+     */
+    public function getFeedData(Request $request)
     {
-        $data = $this->adafruitService->getFeedData($feed);
-        if ($data === null) {
+        $feedKey = $request->query('feed_key');
+        if (!$feedKey) {
+            return response()->json(['success' => false, 'error' => 'feed_key is required'], 400);
+        }
+
+        // 2) Gọi service để lấy data (vẫn có thể trả về nhiều record)
+        $all = $this->adafruitService->getFeedData($feedKey);
+
+        // 3) Lấy phần tử đầu tiên (nếu có)
+        $latest = $all[0] ?? null;
+
+        if ($latest === null) {
             return response()->json([
                 'success' => false,
-                'message' => 'Không thể lấy dữ liệu từ Adafruit IO'
-            ], 500);
+                'error' => "Không có dữ liệu cho feed '{$feedKey}'",
+            ], 404);
         }
+
         return response()->json([
             'success' => true,
-            'data' => $data
-        ]);
+            'feed_key' => $feedKey,
+            'data' => $latest,      // chỉ trả về record mới nhất
+        ], 200);
     }
+
+
 }
