@@ -9,7 +9,7 @@ return new class extends Migration {
     {
         Schema::table('notifications', function (Blueprint $table) {
             // Nếu bạn muốn feed_id là kiểu string (ví dụ: "temperature")
-            $table->string('feed_id')->after('id');
+           // $table->string('feed_id')->after('id');
         });
     }
 
