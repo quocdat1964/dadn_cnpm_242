@@ -19,7 +19,10 @@ module.exports = {
       }
     },
   },
-  plugins: [],
+  plugins: [
+    require('@tailwindcss/aspect-ratio'), // <--- Thêm dòng này
+    // ... các plugin khác nếu có
+  ],
 }
 
 

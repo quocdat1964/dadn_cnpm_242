@@ -34,10 +34,10 @@ const DeviceCard = ({
   return (
     <div className={`rounded-lg shadow-md p-4 ${cardBgColor} ${textColor} ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}>
       {/* Phần hình ảnh và status */}
-      <div className="relative mb-3 h-24 bg-gray-600 rounded flex items-center justify-center overflow-hidden">
+      <div className="relative mb-3 bg-gray-600 rounded overflow-hidden aspect-square">
         {/* Placeholder Image - Thay bằng hình ảnh thực tế */}
         {imageUrl ? (
-             <img src={imageUrl} alt={deviceName} className="max-h-full max-w-full object-contain" />
+             <img src={imageUrl} alt={deviceName} className="w-full h-full object-cover" />
         ) : (
             <span className="text-gray-400 text-sm">No Image</span>
         )}
