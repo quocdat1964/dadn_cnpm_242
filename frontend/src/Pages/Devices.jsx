@@ -1,50 +1,42 @@
 // src/pages/Devices.jsx
-import React, { useState, Fragment } from 'react'; // Import Fragment
-// Không import Sidebar
-import SettingsModal from '../Components/SettingModal'; // Đảm bảo đường dẫn đúng
-import DeviceCard from '../Components/DeviceCard';     // Đảm bảo đường dẫn đúng
-import ScheduleEntry from '../Components/ScheduleEntry'; // Đảm bảo đường dẫn đúng
+import React, { useState, Fragment } from 'react';
+import SettingsModal from '../Components/SettingModal';
+import DeviceCard from '../Components/DeviceCard';
+import ScheduleEntry from '../Components/ScheduleEntry';
 import pump from '../image/water_pump.png'
 import {
     FiSettings as PageSettingsIcon,
     FiBell,
     FiPlus,
     FiPower,
-    FiZap,      // Icon đèn (giả định)
-    FiDroplet   // Icon máy bơm (giả định)
+    FiZap, 
+    FiDroplet
 } from 'react-icons/fi';
 
-// --- Dữ liệu khởi tạo ---
-// Điều chỉnh dựa trên screenshot (tên đơn giản hơn, status text khác)
-// Thêm isManual để phân biệt và id để dễ quản lý
 const initialDevicesData = {
-    light1: { id: 'light1', name: 'Đèn', type: 'light', statusText: 'Ánh sáng 30 LUX', isOn: false, isManual: true, settings: { threshold: 50 } }, // Thêm setting ví dụ
-    pump1: { id: 'pump1', name: 'Máy bơm', type: 'pump', statusText: 'Độ ẩm đất 30 %', isOn: false, isManual: true, settings: { duration: 10 } }, // Thêm setting ví dụ, screenshot là OFF
-    light2: { id: 'light2', name: 'Đèn', type: 'light', statusText: 'Ánh sáng 30 LUX', isManual: false, settings: { threshold: 70 } }, // Thiết bị tự động không cần trạng thái isOn trực tiếp ở đây
-    pump2: { id: 'pump2', name: 'Máy bơm', type: 'pump', statusText: 'Độ ẩm đất 30 %', isManual: false, settings: { threshold: 40 } }, // Thêm setting ví dụ
+    light1: { id: 'light1', name: 'Đèn', type: 'light', statusText: 'Ánh sáng 30 LUX', isOn: false, isManual: true, settings: { threshold: 50 } },
+    pump1: { id: 'pump1', name: 'Máy bơm', type: 'pump', statusText: 'Độ ẩm đất 30 %', isOn: false, isManual: true, settings: { duration: 10 } },
+    light2: { id: 'light2', name: 'Đèn', type: 'light', statusText: 'Ánh sáng 30 LUX', isManual: false, settings: { threshold: 70 } },
+    pump2: { id: 'pump2', name: 'Máy bơm', type: 'pump', statusText: 'Độ ẩm đất 30 %', isManual: false, settings: { threshold: 40 } },
 };
 
 const initialSchedulesData = [
     { id: 'sch1', deviceName: 'Đèn', deviceType: 'light', icon: FiZap, startTime: '8 pm', endTime: '8 am', isActive: true },
-    { id: 'sch2', deviceName: 'Máy bơm', deviceType: 'pump', icon: FiDroplet, startTime: '8 pm', endTime: '8 am', isActive: true }, // Screenshot hiển thị cả 2 đang ON
+    { id: 'sch2', deviceName: 'Máy bơm', deviceType: 'pump', icon: FiDroplet, startTime: '8 pm', endTime: '8 am', isActive: true },
 ];
-// -------------------------
 
 const Devices = () => {
     const [devices, setDevices] = useState(initialDevicesData);
     const [schedules, setSchedules] = useState(initialSchedulesData);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingDeviceKey, setEditingDeviceKey] = useState(null); // Dùng key (vd: 'light2') để xác định device đang sửa
-
-    // --- Hàm xử lý ---
+    const [editingDeviceKey, setEditingDeviceKey] = useState(null); 
 
     // Bật/tắt thiết bị thủ công
     const handleManualToggle = async (deviceKey) => {
         const deviceToToggle = devices[deviceKey];
-        if (!deviceToToggle || !deviceToToggle.isManual) return; // Chỉ xử lý thiết bị manual
+        if (!deviceToToggle || !deviceToToggle.isManual) return;
 
         const newIsOn = !deviceToToggle.isOn;
-        // Cập nhật state trước (optimistic update)
         setDevices(prev => ({
             ...prev,
             [deviceKey]: { ...prev[deviceKey], isOn: newIsOn }
@@ -58,9 +50,8 @@ const Devices = () => {
             // Rollback state nếu API lỗi
             setDevices(prev => ({
                 ...prev,
-                [deviceKey]: { ...prev[deviceKey], isOn: !newIsOn } // Trả về trạng thái cũ
+                [deviceKey]: { ...prev[deviceKey], isOn: !newIsOn } 
             }));
-            // Hiện thông báo lỗi cho người dùng (nếu cần)
         }
     };
 
@@ -88,7 +79,7 @@ const Devices = () => {
             ...prev,
             [editingDeviceKey]: { ...prev[editingDeviceKey], settings: newSettings }
         }));
-        setIsModalOpen(false); // Đóng modal sau khi lưu
+        setIsModalOpen(false);
 
         try {
             console.log(`API CALL: Saving settings for ${editingDeviceKey}:`, newSettings);
@@ -99,10 +90,9 @@ const Devices = () => {
             // Rollback state nếu API lỗi
             setDevices(prev => ({
                 ...prev,
-                [editingDeviceKey]: { ...prev[editingDeviceKey], settings: originalSettings } // Trả về settings cũ
+                [editingDeviceKey]: { ...prev[editingDeviceKey], settings: originalSettings }
             }));
-            setIsModalOpen(true); // Mở lại modal để người dùng biết lỗi? (tùy logic)
-             // Hiện thông báo lỗi
+            setIsModalOpen(true);
         }
     };
 
@@ -128,15 +118,12 @@ const Devices = () => {
             setSchedules(prev => prev.map(sch =>
                 sch.id === scheduleId ? { ...sch, isActive: !newIsActive } : sch
             ));
-             // Hiện thông báo lỗi
         }
     };
 
     // Thêm lịch trình (Placeholder)
     const handleAddSchedule = () => {
         console.log("API CALL: Request to add a new schedule");
-        // Logic mở modal/form thêm lịch trình sẽ ở đây
-        // Sau khi thêm thành công từ API, cập nhật lại state 'schedules'
     };
 
     // Tắt tất cả thiết bị thủ công
@@ -165,18 +152,14 @@ const Devices = () => {
             // Hiện thông báo lỗi
         }
     }
-    // --------------------
 
     // Lấy thông tin device đang chỉnh sửa cho Modal
     const currentEditingDevice = editingDeviceKey ? devices[editingDeviceKey] : null;
 
     return (
-        // Sử dụng Fragment vì không cần div bao ngoài nữa
         <Fragment>
-            {/* Header của trang Devices */}
-            <header className="flex items-center justify-between p-5 border-b bg-white sticky top-0 z-20">
+            <header className="flex items-center justify-between p-5 border-b bg-white">
                  <div className="flex items-center">
-                    {/* Không có nút toggle menu ở đây */}
                     <h1 className="text-2xl font-bold text-gray-800">SMART TOMATO FARM</h1>
                  </div>
                  <div className="flex items-center space-x-4">
@@ -197,7 +180,6 @@ const Devices = () => {
                     <section className="max-w-xs mx-auto w-full">
                         <h2 className="text-xl font-semibold mb-4 text-gray-700">Thủ công</h2>
                         <div className="space-y-4">
-                            {/* Thêm optional chaining `?.` để an toàn khi truy cập state */}
                             <DeviceCard
                                 id={devices.light1?.id}
                                 deviceName={devices.light1?.name}
@@ -205,7 +187,7 @@ const Devices = () => {
                                 isManual={true}
                                 isDeviceOn={devices.light1?.isOn}
                                 onToggleChange={() => handleManualToggle('light1')}
-                                imageUrl={pump} // Cập nhật ảnh nếu có
+                                imageUrl={pump}
                             />
                             <DeviceCard
                                 id={devices.pump1?.id}
@@ -214,7 +196,7 @@ const Devices = () => {
                                 isManual={true}
                                 isDeviceOn={devices.pump1?.isOn}
                                 onToggleChange={() => handleManualToggle('pump1')}
-                                imageUrl={pump} // Cập nhật ảnh nếu có
+                                imageUrl={pump}
                             />
                         </div>
                     </section>
@@ -227,17 +209,17 @@ const Devices = () => {
                                 id={devices.light2?.id}
                                 deviceName={devices.light2?.name}
                                 statusText={devices.light2?.statusText}
-                                isManual={false} // Hiện nút gear
+                                isManual={false} 
                                 onSettingsClick={() => handleOpenSettings('light2')}
-                                imageUrl={pump} // Cập nhật ảnh nếu có
+                                imageUrl={pump}
                             />
                             <DeviceCard
                                 id={devices.pump2?.id}
                                 deviceName={devices.pump2?.name}
                                 statusText={devices.pump2?.statusText}
-                                isManual={false} // Hiện nút gear
+                                isManual={false}
                                 onSettingsClick={() => handleOpenSettings('pump2')}
-                                imageUrl={pump} // Cập nhật ảnh nếu có
+                                imageUrl={pump}
                             />
                         </div>
                     </section>
@@ -255,20 +237,17 @@ const Devices = () => {
                                  <FiPlus size={24} />
                             </button>
                          </div>
-                         <div className="bg-gray-100 p-4 rounded-lg shadow-inner space-y-3 border border-gray-200"> {/* Thêm style nhẹ nhàng */}
+                         <div className="bg-gray-100 p-4 rounded-lg shadow-inner space-y-3 border border-gray-200">
                                {schedules.map(schedule => (
                                    <ScheduleEntry
                                        key={schedule.id}
                                        id={schedule.id}
                                        deviceName={schedule.deviceName}
-                                       icon={schedule.icon} // Truyền icon từ data
+                                       icon={schedule.icon}
                                        startTime={schedule.startTime}
                                        endTime={schedule.endTime}
                                        isActive={schedule.isActive}
                                        onToggle={() => handleScheduleToggle(schedule.id)}
-                                       // Thêm các hàm xử lý edit/delete nếu cần
-                                       // onEdit={() => handleEditSchedule(schedule.id)}
-                                       // onDelete={() => handleDeleteSchedule(schedule.id)}
                                    />
                                ))}
                                {schedules.length === 0 && (
@@ -295,10 +274,10 @@ const Devices = () => {
             <SettingsModal
                  isOpen={isModalOpen}
                  onClose={handleCloseModal}
-                 // Sử dụng ?. để tránh lỗi nếu currentEditingDevice là null
+
                  deviceType={currentEditingDevice?.type}
                  deviceName={currentEditingDevice?.name}
-                 currentSettings={currentEditingDevice?.settings || {}} // Đảm bảo settings là object
+                 currentSettings={currentEditingDevice?.settings || {}}
                  onSave={handleSaveSettings}
             />
         </Fragment>

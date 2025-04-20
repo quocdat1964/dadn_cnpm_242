@@ -2,7 +2,6 @@
 import React from 'react';
 import { FiSettings } from 'react-icons/fi';
 
-// Component Toggle Switch đơn giản (có thể tách ra thành component riêng nếu cần)
 const ToggleSwitch = ({ id, isChecked, onChange, disabled = false }) => (
   <label htmlFor={id} className="inline-flex relative items-center cursor-pointer">
     <input
@@ -20,7 +19,7 @@ const ToggleSwitch = ({ id, isChecked, onChange, disabled = false }) => (
 const DeviceCard = ({
   id,
   deviceName,
-  imageUrl, // URL hình ảnh/placeholder
+  imageUrl,
   statusText,
   isManual, // true: hiện toggle, false: hiện gear
   isDeviceOn, // Trạng thái bật/tắt (cho manual toggle)
@@ -28,14 +27,13 @@ const DeviceCard = ({
   onSettingsClick, // Hàm xử lý khi click gear
   disabled = false, // Vô hiệu hóa card
 }) => {
-  const cardBgColor = 'bg-gray-700'; // Màu nền card theo ảnh (điều chỉnh nếu cần)
+  const cardBgColor = 'bg-gray-700';
   const textColor = 'text-white';
 
   return (
     <div className={`rounded-lg shadow-md p-4 ${cardBgColor} ${textColor} ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}>
       {/* Phần hình ảnh và status */}
       <div className="relative mb-3 bg-gray-600 rounded overflow-hidden aspect-square">
-        {/* Placeholder Image - Thay bằng hình ảnh thực tế */}
         {imageUrl ? (
              <img src={imageUrl} alt={deviceName} className="w-full h-full object-cover" />
         ) : (

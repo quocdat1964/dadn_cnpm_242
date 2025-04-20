@@ -11,23 +11,11 @@ import {
 } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 
-
-// Helper function để xác định path dựa trên tên item
-const getPathFromName = (name) => {
-  switch (name) {
-    case 'HOME': return '/';
-    case 'DEVICE': return '/devices';
-    case 'DATA': return '/data';
-    case 'USER': return '/user';
-    default: return '/';
-  }
-};
-
 const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
-  // Sử dụng useLocation để lấy đường dẫn hiện tại
+
   const location = useLocation();
-  const navigate = useNavigate(); // Hook để điều hướng
-  const { user, logout } = useAuth(); // Lấy user và hàm logout từ context
+  const navigate = useNavigate(); 
+  const { user, logout } = useAuth();
 
   // Xác định activeItem dựa trên location.pathname
   const determineActiveItem = (pathname) => {
@@ -35,7 +23,7 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
     if (pathname === '/data') return 'DATA';
     if (pathname === '/user') return 'USER';
     if (pathname === '/') return 'HOME';
-    return 'HOME'; // Mặc định là HOME
+    return 'HOME';
   };
 
   const activeItem = determineActiveItem(location.pathname);
@@ -53,10 +41,7 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
 
   const handleLogout = () => {
     logout(); // Gọi hàm logout từ context
-    // Không cần navigate ở đây nữa vì ProtectedRoute sẽ tự động chuyển hướng
-    // navigate('/login');
     console.log("Logout initiated, ProtectedRoute will handle redirect.");
-    // Đóng sidebar nếu đang mở trên mobile
     if (isSidebarOpen && toggleSidebar) {
       toggleSidebar();
     }
@@ -64,7 +49,6 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
 
   return (
     <>
-      {/* Lớp phủ nền mờ khi sidebar mở trên mobile */}
       {isSidebarOpen && (
         <div
           className="fixed inset-0 z-30 bg-black opacity-50 lg:hidden"
@@ -75,14 +59,14 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
       {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 w-64 bg-green-700 text-white transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          } transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex-shrink-0`} // Thêm flex-shrink-0
+          } transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex-shrink-0`}
       >
         <div className="flex flex-col h-full">
           {/* User Info & Close Button */}
           <div className="flex items-center justify-between p-4 border-b border-green-600">
             <div className="flex items-center">
               <img
-                src={user?.avatarUrl || "https://via.placeholder.com/40"} // Lấy avatar từ user context
+                src={user?.avatarUrl || "https://via.placeholder.com/40"}
                 alt="User Avatar"
                 className="w-10 h-10 rounded-full mr-3 border-2 border-green-500"
               />
@@ -101,10 +85,10 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
           {/* Navigation */}
           <nav className="flex-grow px-4 py-6 space-y-2">
             {navItems.map((item) => (
-              <Link // Thay thế <button> bằng <Link>
+              <Link
                 key={item.name}
-                to={item.path} // Sử dụng prop 'to' để chỉ định đường dẫn
-                onClick={isSidebarOpen ? toggleSidebar : undefined} // Đóng sidebar khi nhấp vào link trên mobile
+                to={item.path}
+                onClick={isSidebarOpen ? toggleSidebar : undefined}
                 className={`${linkClasses} ${activeItem === item.name ? activeLinkClasses : ''
                   }`}
               >
@@ -116,7 +100,6 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
 
           {/* Logout Button */}
           <div className="px-4 py-4 border-t border-green-600">
-            {/* Thay bằng button và gọi handleLogout */}
             <button onClick={handleLogout} className={`${linkClasses} w-full`}>
               <FiLogOut className="w-5 h-5 mr-3" />
               <span className="text-sm uppercase tracking-wider">LOG OUT</span>

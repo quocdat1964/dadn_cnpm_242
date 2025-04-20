@@ -10,7 +10,7 @@ import {
   Title,
   Tooltip,
   Legend,
-  Filler // Để tô màu vùng dưới đường line (nếu cần)
+  Filler 
 } from 'chart.js';
 
 // Đăng ký các thành phần cần thiết cho ChartJS
@@ -106,8 +106,8 @@ const SensorChart = ({ title, chartData, yAxisLabel = "Value", lineColor = 'rgb(
         label: title, // Nhãn cho dataset (hiển thị trong tooltip)
         data: chartData.values || [], // Mảng giá trị trục Y
         borderColor: lineColor,
-        backgroundColor: lineColor.replace('rgb','rgba').replace(')',', 0.1)'), // Màu nền dưới đường line (nhạt hơn)
-        tension: 0.3, // Làm mịn đường line
+        backgroundColor: lineColor.replace('rgb','rgba').replace(')',', 0.1)'),
+        tension: 0.3,
         borderWidth: 2,
         pointBackgroundColor: lineColor,
         pointRadius: 3,
@@ -117,10 +117,8 @@ const SensorChart = ({ title, chartData, yAxisLabel = "Value", lineColor = 'rgb(
     ],
   };
 
-  // Cần có container với chiều cao xác định để biểu đồ hiển thị
   return (
     <div className="bg-white p-4 rounded-lg shadow h-72 md:h-80">
-       {/* Đặt chiều cao cố định hoặc min-height */}
       <Line options={options} data={data} />
     </div>
   );

@@ -1,24 +1,20 @@
 // src/pages/UserInfo.jsx
-import React, { useState, useEffect, useCallback, Fragment } from 'react'; // Import Fragment
-// XÓA: import Sidebar from '../Components/Sidebar'; // Không import Sidebar nữa
-import axios from 'axios'; // Or use fetch
+import React, { useState, useEffect, useCallback, Fragment } from 'react';
 import dayjs from 'dayjs';
 import {
     FiSettings as PageSettingsIcon,
     FiBell,
-    // XÓA: FiMenu, // Không cần FiMenu nếu nút toggle đã có ở App.js
     FiEdit,
     FiMail,
     FiPhone,
-    FiUser, // Placeholder for avatar if no image
+    FiUser,
     FiSave,
-    FiXCircle, // Cancel icon
-    FiLoader, // Loading icon
+    FiXCircle,
+    FiLoader,
     FiEye,
     FiEyeOff
 } from 'react-icons/fi';
 
-// Component nhỏ để hiển thị trường thông tin (giữ nguyên)
 const ProfileField = ({ label, value, name, isEditing, onChange, inputType = 'text', readOnly = false, children }) => {
     if (isEditing && !readOnly) {
         return (
@@ -40,7 +36,6 @@ const ProfileField = ({ label, value, name, isEditing, onChange, inputType = 'te
     return (
         <div className="grid grid-cols-3 gap-4 items-center mb-3">
             <p className="text-sm font-medium text-gray-600 col-span-1">{label}:</p>
-            {/* Children ưu tiên hiển thị nếu có (vd: cho password với icon mắt) */}
             {children ? (
                 <div className="text-sm text-gray-800 col-span-2">{children}</div>
             ) : (
@@ -52,53 +47,38 @@ const ProfileField = ({ label, value, name, isEditing, onChange, inputType = 'te
 
 
 const UserInfo = () => {
-    // XÓA: const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [userData, setUserData] = useState(null);
     const [activityLogs, setActivityLogs] = useState([]);
-    const [formData, setFormData] = useState({}); // Dữ liệu tạm thời khi sửa
+    const [formData, setFormData] = useState({});
     const [isEditingInfo, setIsEditingInfo] = useState(false);
     const [isEditingAccount, setIsEditingAccount] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [successMessage, setSuccessMessage] = useState(null);
-    const [isSubmitting, setIsSubmitting] = useState(false); // Loading khi submit
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
 
-    // XÓA: const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
-
-    // Fetch initial data (giữ nguyên)
     useEffect(() => {
         const fetchUserData = async () => {
             setLoading(true);
             setError(null);
             try {
-                // --- GIẢ LẬP API GET USER DATA ---
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 const mockUserData = {
                     id: 1,
                     name: 'Nguyen Quoc Dat',
                     gender: 'Male',
-                    startDate: '2025-03-28', // Format YYYY-MM-DD
+                    startDate: '2025-03-28',
                     email: 'abcdef@gmail.com',
                     phone: '0123456789',
-                    avatarUrl: null, // Hoặc 'https://via.placeholder.com/150'
+                    avatarUrl: null,
                     username: 'nguyenquocdathcmut',
-                    // Không nên fetch password
                 };
                 const mockLogs = [
                     { id: 1, time: '2025-03-28 12:30', device: 'Led RGB', message: 'Change led color to blue' },
                     { id: 2, time: '2025-03-28 11:00', device: 'Máy bơm', message: 'Turn on pump' },
                     { id: 3, time: '2025-03-27 18:00', device: 'Led RGB', message: 'Set brightness to 80%' },
                 ];
-                // --- KẾT THÚC GIẢ LẬP ---
-
-                /*
-                // --- API Call Thật ---
-                const userResponse = await axios.get('/api/user/profile'); // Thay endpoint
-                const logsResponse = await axios.get('/api/user/activity-logs'); // Thay endpoint
-                setUserData(userResponse.data);
-                setActivityLogs(logsResponse.data);
-                */
 
                 setUserData(mockUserData);
                 setActivityLogs(mockLogs);
@@ -113,86 +93,57 @@ const UserInfo = () => {
         fetchUserData();
     }, []);
 
-    // Hàm xử lý khi nhấn nút sửa (giữ nguyên)
     const handleEditClick = (section) => {
         if (!userData) return;
-        setError(null); // Clear error cũ
-        setSuccessMessage(null); // Clear success message cũ
+        setError(null);
+        setSuccessMessage(null);
 
         if (section === 'info') {
-            // Copy dữ liệu cần sửa vào formData
+
             setFormData({
                 name: userData.name,
                 gender: userData.gender,
-                // Thêm các trường khác nếu cần sửa
+
             });
             setIsEditingInfo(true);
-            setIsEditingAccount(false); // Đảm bảo chỉ 1 section được sửa 1 lúc
+            setIsEditingAccount(false);
         } else if (section === 'account') {
             setFormData({
                 username: userData.username,
-                // Password không sửa trực tiếp ở đây
             });
             setIsEditingAccount(true);
             setIsEditingInfo(false);
         }
     };
 
-    // Hàm xử lý khi nhấn nút hủy (giữ nguyên)
     const handleCancelEdit = () => {
         setIsEditingInfo(false);
         setIsEditingAccount(false);
-        setFormData({}); // Reset form data
+        setFormData({});
         setError(null);
     };
 
-    // Hàm xử lý khi thay đổi input (giữ nguyên)
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    // Hàm xử lý khi lưu (chung, gọi hàm cụ thể) (giữ nguyên)
     const handleSave = async (section) => {
         setIsSubmitting(true);
         setError(null);
         setSuccessMessage(null);
 
         try {
-            // --- GIẢ LẬP API UPDATE ---
             await new Promise(resolve => setTimeout(resolve, 1500));
-            // Kiểm tra dữ liệu gửi đi (ví dụ)
             console.log(`Updating ${section} with data:`, formData);
-            // Giả lập thành công
             const updatedUserData = { ...userData, ...formData };
-            // --- KẾT THÚC GIẢ LẬP ---
 
-            /*
-            // --- API Call Thật ---
-            let response;
-            if (section === 'info') {
-                 response = await axios.put('/api/user/profile', { // Thay endpoint
-                      name: formData.name,
-                      gender: formData.gender,
-                       // Gửi các trường khác đã sửa
-                 });
-            } else if (section === 'account') {
-                  response = await axios.put('/api/user/account', { // Thay endpoint
-                      username: formData.username,
-                  });
-            }
-             const updatedUserData = response.data; // Lấy dữ liệu mới từ API (nếu có)
-            */
-
-
-            // Cập nhật state sau khi thành công
             setUserData(updatedUserData);
             setSuccessMessage("Cập nhật thông tin thành công!");
-            handleCancelEdit(); // Thoát chế độ edit
+            handleCancelEdit();
 
         } catch (err) {
             console.error(`Failed to update ${section}:`, err);
-            // Hiển thị lỗi cụ thể hơn nếu API trả về message lỗi
             const apiErrorMessage = err.response?.data?.message || `Không thể cập nhật ${section}. Vui lòng thử lại.`;
             setError(apiErrorMessage);
         } finally {
@@ -200,11 +151,8 @@ const UserInfo = () => {
         }
     };
 
-    // Phần xử lý loading và error ban đầu (giữ nguyên)
     if (loading) {
         return (
-            // Bỏ w-screen, h-screen. Thêm w-full, h-full để nó chiếm toàn bộ không gian
-            // của container cha (<main> trong App.js) nơi nó được render.
             <div className="flex w-full h-full items-center justify-center bg-gray-100">
                 <FiLoader className="animate-spin text-blue-500 mr-3" size={40} />
                 <span>Đang tải...</span>
@@ -212,8 +160,7 @@ const UserInfo = () => {
         );
     }
 
-    if (error && !userData) { // Lỗi nghiêm trọng không tải được dữ liệu ban đầu
-        // Tương tự, căn giữa trong khu vực nội dung chính
+    if (error && !userData) {
         return (
             <div className="flex w-full h-full items-center justify-center bg-red-100 text-red-700 p-10">
                 <p><strong>Lỗi:</strong> {error}</p>
@@ -221,25 +168,11 @@ const UserInfo = () => {
         )
     }
 
-    // --- Phần JSX ---
     return (
-        // XÓA: <div className="flex h-screen w-screen bg-gray-100 overflow-hidden">
-        // Sử dụng Fragment thay thế
         <Fragment>
-            {/* XÓA: Dòng render Sidebar */}
-            {/* <Sidebar isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} activeItem="USER" /> */}
-
-            {/* XÓA: <main className="flex-1 flex flex-col overflow-y-auto"> -> Không cần thẻ main nếu App.js đã có layout */}
             {/* Standard Header */}
             <header className="flex items-center justify-between p-5 border-b bg-white sticky top-0 z-20">
                 <div className="flex items-center">
-                    {/* XÓA: Nút toggle menu cho mobile */}
-                    {/*
-                         <button onClick={toggleSidebar} className="text-gray-600 hover:text-gray-900 focus:outline-none lg:hidden mr-4" aria-label="Open sidebar">
-                             <FiMenu size={24} />
-                         </button>
-                         */}
-                    {/* Thêm tiêu đề trang nếu muốn, ví dụ: */}
                     <h1 className="text-xl font-semibold text-gray-800">Thông tin người dùng</h1>
                 </div>
                 <div className="flex items-center space-x-4">
@@ -255,7 +188,7 @@ const UserInfo = () => {
             {/* Main Content Area */}
             <div className="p-6 flex-grow">
                 {/* Thông báo lỗi/thành công */}
-                {error && !isSubmitting && ( // Chỉ hiển thị lỗi nếu không phải đang submit
+                {error && !isSubmitting && (
                     <div className="mb-4 p-3 bg-red-100 text-red-700 border border-red-300 rounded text-sm">
                         {error}
                     </div>
@@ -337,7 +270,7 @@ const UserInfo = () => {
                                 )}
                             </div>
                             <ProfileField label="Username" name="username" value={isEditingAccount ? formData.username : userData?.username} isEditing={isEditingAccount} onChange={handleInputChange} />
-                            {/* Password Field - Display Only with toggle */}
+
                             <ProfileField label="Password" readOnly={true} isEditing={isEditingAccount}>
                                 <div className="flex items-center justify-between">
                                     <span>{showPassword ? 'Mật khẩu hiện tại' : '******'}</span> {/* Không hiển thị pass thật */}
@@ -346,8 +279,7 @@ const UserInfo = () => {
                                     </button>
                                 </div>
                             </ProfileField>
-                            {/* Thêm nút "Đổi mật khẩu" riêng biệt ở đây nếu cần */}
-                            {/* {!isEditingAccount && <button className='text-sm text-blue-600 hover:underline mt-2'>Đổi mật khẩu</button>} */}
+
                         </div>
 
                         {/* Activity Logs Section */}
@@ -381,9 +313,8 @@ const UserInfo = () => {
                     </section>
                 </div>
             </div>
-            {/* XÓA: </main> */}
-        </Fragment> // Đóng Fragment
-        // XÓA: </div> // Xóa thẻ div bao ngoài cùng
+
+        </Fragment>
     );
 };
 

@@ -12,7 +12,6 @@ const ForgotPasswordPage = () => {
     setIsLoading(true);
     setError('');
 
-    // Mô phỏng gửi yêu cầu đặt lại mật khẩu
     setTimeout(() => {
       // Xử lý logic quên mật khẩu ở đây
       console.log('Gửi yêu cầu đặt lại mật khẩu cho:', email);

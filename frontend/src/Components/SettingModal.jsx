@@ -22,11 +22,10 @@ const SettingsModal = ({ isOpen, onClose, deviceType, deviceName, currentSetting
       <label htmlFor="lightColor" className="block text-sm font-medium text-gray-700">
         Màu sắc đèn:
       </label>
-      {/* Ví dụ dùng select - có thể thay bằng color picker component */}
       <select
         id="lightColor"
         name="lightColor"
-        value={settings?.color || '#ffffff'} // Giá trị mặc định nếu chưa có
+        value={settings?.color || '#ffffff'}
         onChange={(e) => setSettings({ ...settings, color: e.target.value })}
         className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
       >
@@ -35,7 +34,6 @@ const SettingsModal = ({ isOpen, onClose, deviceType, deviceName, currentSetting
         <option value="#add8e6">Xanh nhạt</option>
         <option value="#ffb6c1">Hồng nhạt</option>
       </select>
-      {/* Hiển thị màu đang chọn */}
       <div className="flex items-center space-x-2">
         <span>Màu hiện tại:</span>
         <div className="w-6 h-6 rounded border border-gray-300" style={{ backgroundColor: settings?.color || '#ffffff' }}></div>
@@ -55,13 +53,12 @@ const SettingsModal = ({ isOpen, onClose, deviceType, deviceName, currentSetting
         min="0"
         max="100"
         step="10"
-        value={settings?.speed || 0} // Giá trị mặc định
+        value={settings?.speed || 0}
         onChange={(e) => setSettings({ ...settings, speed: parseInt(e.target.value, 10) })}
         className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
       />
     </div>
   );
-  // --- Kết thúc phần render nội dung ---
 
   // Xác định nội dung cần render
   let modalContent;
