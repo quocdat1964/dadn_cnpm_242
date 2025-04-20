@@ -6,6 +6,7 @@ use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\EnvironmentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\DeviceScheduleController;
+use App\Http\Controllers\TelegramController;
 
 Route::get('/sensors/raw-history', [SensorController::class, 'rawHistory']);
 Route::get('/sensors/history', [SensorController::class, 'history']);
@@ -21,13 +22,12 @@ Route::post('/notifications/sync', [NotificationController::class, 'evaluateAndN
 Route::get('/notifications/all', [NotificationController::class, 'getAllNotifications']);
 
 Route::get('/devices/status', [DeviceController::class, 'getStatus']);
-
 Route::get('/sensors/adafruit/latest', [AdafruitController::class, 'getFeedData']);
-
 Route::get('/sensors/adafruit/current', [SensorController::class, 'getCurrentReadings']);
-
 Route::post('/environment/evaluate', [EnvironmentController::class, 'fetchAndEvaluate']);
 Route::post('/sensors/data', [SensorController::class, 'storeData']);
+
+Route::post('/telegram/webhook', [TelegramController::class, 'handle']);
 
 // Route::post('/devices/control', [DeviceController::class, 'updateStatus']);
 // Route::post('/devices/sync-control', [DeviceController::class, 'updateStatus']);

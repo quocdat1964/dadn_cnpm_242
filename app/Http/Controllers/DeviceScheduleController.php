@@ -120,4 +120,45 @@ class DeviceScheduleController extends Controller
             'data' => $schedule,
         ], 200);
     }
+
+
+    /**
+     * Bật/tắt thiết bị và (tuỳ chọn) trả lời lại trên Telegram.
+     *
+     * @param string $deviceKey
+     * @param int    $chatId
+     * @param bool   $shouldReply
+     * @return bool newStatus
+     */
+    public function toggleFromTelegram(string $deviceKey, int $chatId, bool $shouldReply)
+    {
+        // 1) Thực hiện bật/tắt qua feed_key (bạn tự viết)
+        $newStatus = $this->toggleByFeedKey($deviceKey); // true = bật, false = tắt
+
+        // 2) Nếu cần, trả lời lại Telegram
+        if ($shouldReply) {
+            $token = config('services.telegram.bot_token');
+            Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
+                'chat_id' => $chatId,
+                'text' => "Thiết bị **{$deviceKey}** đã được " . ($newStatus ? 'bật' : 'tắt'),
+                'parse_mode' => 'Markdown',
+            ]);
+        }
+
+        return $newStatus;
+    }
+
+    /**
+     * Ví dụ hàm bật/tắt theo feed_key, trả về trạng thái mới.
+     */
+    protected function toggleByFeedKey(string $feedKey): bool
+    {
+        // TODO: gọi API internals của bạn để bật/tắt
+        // Ví dụ:
+        $res = Http::post(config('app.url') . '/api/devices/control', [
+            'feed_key' => $feedKey,
+            'value' => 1, // hoặc 0
+        ]);
+        return $res->successful() && $res->json('device.status') === 'on';
+    }
 }

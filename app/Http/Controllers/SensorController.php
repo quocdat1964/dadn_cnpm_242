@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Sensor;
 use App\Models\Record;
 use Carbon\Carbon;
+use App\Http\Controllers\NotificationController; // ✂️ import
 use Illuminate\Support\Facades\DB;
 
 use App\Events\NewSensorData; // Import event
@@ -65,11 +66,28 @@ class SensorController extends Controller
             ['sensor_id' => $sensor->id, 'recorded_at' => $ts],
             ['value' => $data['value']]
         );
+        // 4) Gọi API cảnh báo ngay sau khi lưu xong
+        try {
+            $notifyPayload = [
+                'feed_id' => $data['feed_id'],
+                'recorded_at' => $ts->toDateTimeString(),
+                // nếu client truyền email/chat, dùng client, ngược lại fallback env
+                'email' => $request->input('email', env('ALERT_EMAIL')),
+                'telegram_chat_id' => $request->input('telegram_chat_id', env('TELEGRAM_CHAT_ID')),
+            ];
+            // tạo một Request mới để gọi
+            $fakeRequest = new Request($notifyPayload);
+            // gọi controller
+            app(NotificationController::class)->evaluateAndNotify($fakeRequest);
+        } catch (\Throwable $e) {
+            // chỉ log, không fail toàn bộ storeData
+            Log::error('Error dispatching notification: ' . $e->getMessage());
+        }
 
         return response()->json(['success' => true], 200);
     }
 
-   
+
 
     public function getCurrentReadings(Request $request)
     {
