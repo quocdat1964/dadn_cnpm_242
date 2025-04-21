@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\DeviceSchedule;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
+use App\Jobs\ToggleDeviceJob;
 
 class DeviceScheduleController extends Controller
 {
@@ -35,6 +36,12 @@ class DeviceScheduleController extends Controller
             'enabled' => true,
         ]);
 
+        ToggleDeviceJob::dispatch($schedule->feed_key, 1)
+            ->delay($schedule->start_at);
+        ToggleDeviceJob::dispatch($schedule->feed_key, 0)
+            ->delay($schedule->end_at);
+
+
         return response()->json([
             'success' => true,
             'data' => $schedule
@@ -57,33 +64,58 @@ class DeviceScheduleController extends Controller
     //    Bật thiết bị nếu giờ hiện tại nằm trong [start_at, end_at) và schedule đang enabled.
     public function apply()
     {
-        $now = Carbon::now();
+        $now = Carbon::now('Asia/Ho_Chi_Minh');
+        \Log::info(">> APPLY at $now");
+
         $username = env('ADAFRUIT_IO_USERNAME');
         $aioKey = env('ADAFRUIT_IO_KEY');
+        // chắc chắn APP_URL của bạn đặt trong .env là http://127.0.0.1:8000
+        $internalControlUrl = config('app.url') . '/api/devices/control';
         $applied = [];
 
+        // Lấy tất cả schedule đang enabled
         DeviceSchedule::where('enabled', true)
             ->get()
-            ->each(function ($sch) use (&$applied, $now, $username, $aioKey) {
-                // lấy trạng thái hiện tại
+            ->each(function ($sch) use (&$applied, $now, $username, $aioKey, $internalControlUrl) {
+
+                $start = $sch->start_at->setTimezone(config('app.timezone'));
+                $end = $sch->end_at->setTimezone(config('app.timezone'));
+                \Log::info("   schedule #{$sch->id}: $start → $end");
+
+                // 1. Lấy trạng thái hiện tại từ Adafruit
                 $resp = Http::withHeaders(['X-AIO-Key' => $aioKey])
                     ->get("https://io.adafruit.com/api/v2/{$username}/feeds/{$sch->feed_key}/data?limit=1");
                 if (!$resp->successful())
                     return;
-
                 $current = floatval($resp->json()[0]['value'] ?? 0);
 
-                // nếu trong khoảng và đang tắt => bật
+                // 2. Nếu trong khoảng [start_at, end_at) và đang OFF (0) -> BẬT
                 if ($now->between($sch->start_at, $sch->end_at, true) && $current === 0.0) {
-                    Http::post(config('app.url') . '/api/devices/control', [
+                    $r = Http::post($internalControlUrl, [
                         'feed_key' => $sch->feed_key,
                         'value' => 1
                     ]);
-                    $applied[] = [
+                    if ($r->successful()) {
+                        $applied[] = [
+                            'feed_key' => $sch->feed_key,
+                            'action' => 'on',
+                            'at' => $now->toDateTimeString(),
+                        ];
+                    }
+                }
+                // 3. Nếu ngoài khoảng và đang ON (1) -> TẮT
+                elseif (!$now->between($sch->start_at, $sch->end_at, true) && $current === 1.0) {
+                    $r = Http::post($internalControlUrl, [
                         'feed_key' => $sch->feed_key,
-                        'action' => 'on',
-                        'at' => $now->toDateTimeString(),
-                    ];
+                        'value' => 0
+                    ]);
+                    if ($r->successful()) {
+                        $applied[] = [
+                            'feed_key' => $sch->feed_key,
+                            'action' => 'off',
+                            'at' => $now->toDateTimeString(),
+                        ];
+                    }
                 }
             });
 
@@ -113,6 +145,12 @@ class DeviceScheduleController extends Controller
         $schedule->start_at = Carbon::parse($data['start_at']);
         $schedule->end_at = Carbon::parse($data['end_at']);
         $schedule->save();
+
+        ToggleDeviceJob::dispatch($schedule->feed_key, 1)
+            ->delay($schedule->start_at);
+        ToggleDeviceJob::dispatch($schedule->feed_key, 0)
+            ->delay($schedule->end_at);
+
 
         return response()->json([
             'success' => true,

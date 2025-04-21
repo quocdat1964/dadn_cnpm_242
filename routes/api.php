@@ -20,16 +20,70 @@ Route::post('/devices/turn-on-all', [DeviceController::class, 'turnOnAll']);
 Route::post('/devices/turn-off-all', [DeviceController::class, 'turnOffAll']);
 Route::post('/notifications/sync', [NotificationController::class, 'evaluateAndNotify']);
 Route::get('/notifications/all', [NotificationController::class, 'getAllNotifications']);
-
 Route::get('/devices/status', [DeviceController::class, 'getStatus']);
 Route::get('/sensors/adafruit/latest', [AdafruitController::class, 'getFeedData']);
 Route::get('/sensors/adafruit/current', [SensorController::class, 'getCurrentReadings']);
 Route::post('/environment/evaluate', [EnvironmentController::class, 'fetchAndEvaluate']);
 Route::post('/sensors/data', [SensorController::class, 'storeData']);
-
 Route::post('/telegram/webhook', [TelegramController::class, 'handle']);
-
+Route::get('/sensors/thresholds', [SensorController::class, 'getThreshold']);
+Route::post('/sensors/thresholds', [SensorController::class, 'setThreshold']);
 // Route::post('/devices/control', [DeviceController::class, 'updateStatus']);
 // Route::post('/devices/sync-control', [DeviceController::class, 'updateStatus']);
-
 Route::post('/devices/control', [DeviceController::class, 'toggle']);
+
+
+// <?php
+// // filepath: routes/api.php
+
+// use Illuminate\Support\Facades\Route;
+// use App\Http\Controllers\{
+//     SensorController,
+//     AdafruitController,
+//     DeviceController,
+//     EnvironmentController,
+//     NotificationController,
+//     DeviceScheduleController,
+//     TelegramController
+// };
+
+// // ───── Sensors & Adafruit ───────────────────────────────────────────────────────
+// Route::prefix('sensors')->group(function () {
+//     Route::controller(SensorController::class)->group(function () {
+//         Route::get('raw-history',    'rawHistory');
+//         Route::get('history',        'history');
+//         Route::get('adafruit/current','getCurrentReadings');
+//         Route::post('data',          'storeData');
+//         Route::get('thresholds',     'getThreshold');
+//         Route::post('thresholds',    'setThreshold');
+//     });
+
+//     Route::get('adafruit/latest', [AdafruitController::class, 'getFeedData']);
+// });
+
+// // ───── Device Schedules ─────────────────────────────────────────────────────────
+// Route::apiResource('device-schedules', DeviceScheduleController::class)
+//      ->except(['show']);
+
+// Route::patch('device-schedules/{schedule}/toggle', [DeviceScheduleController::class, 'toggle']);
+// Route::post ('device-schedules/apply',            [DeviceScheduleController::class, 'apply']);
+
+// // ───── Devices ─────────────────────────────────────────────────────────────────
+// Route::prefix('devices')->controller(DeviceController::class)->group(function () {
+//     Route::post('turn-on-all',  'turnOnAll');
+//     Route::post('turn-off-all', 'turnOffAll');
+//     Route::post('control',      'toggle');
+//     Route::get ('status',       'getStatus');
+// });
+
+// // ───── Notifications ─────────────────────────────────────────────────────────────
+// Route::prefix('notifications')->controller(NotificationController::class)->group(function () {
+//     Route::post('sync', 'evaluateAndNotify');
+//     Route::get ('all',  'getAllNotifications');
+// });
+
+// // ───── Environment ──────────────────────────────────────────────────────────────
+// Route::post('environment/evaluate', [EnvironmentController::class, 'fetchAndEvaluate']);
+
+// // ───── Telegram Webhook ─────────────────────────────────────────────────────────
+// Route::post('telegram/webhook', [TelegramController::class, 'handle']);
