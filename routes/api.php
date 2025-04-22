@@ -7,6 +7,10 @@ use App\Http\Controllers\EnvironmentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\DeviceScheduleController;
 use App\Http\Controllers\TelegramController;
+//cho phần login anđ logout
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AuthController;
+
 
 Route::get('/sensors/raw-history', [SensorController::class, 'rawHistory']);
 Route::get('/sensors/history', [SensorController::class, 'history']);
@@ -87,3 +91,10 @@ Route::post('/devices/control', [DeviceController::class, 'toggle']);
 
 // // ───── Telegram Webhook ─────────────────────────────────────────────────────────
 // Route::post('telegram/webhook', [TelegramController::class, 'handle']);
+Route::post('/devices/control', [DeviceController::class, 'updateStatus']);
+Route::post('/devices/sync-control', [DeviceController::class, 'syncControl']);
+
+//cho phần login anđ logout
+Route::post('/register', [AuthController::class, 'register']);
+Route::post('/login',    [AuthController::class, 'login']);
+Route::post('/logout',   [AuthController::class, 'logout'])->middleware('auth');
