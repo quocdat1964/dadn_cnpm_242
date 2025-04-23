@@ -38,6 +38,10 @@ return [
     'adafruit' => [
         'username' => env('ADAFRUIT_IO_USERNAME'),
         'key' => env('ADAFRUIT_IO_KEY'),
+        'mqtt_host' => 'io.adafruit.com',
+        'mqtt_port' => 8883,           // cổng SSL MQTT
+        'mqtt_username' => env('ADAFRUIT_IO_USERNAME'),
+        'mqtt_key' => env('ADAFRUIT_IO_KEY'),
     ],
 
     'telegram' => [

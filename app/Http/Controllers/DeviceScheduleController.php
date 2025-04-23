@@ -69,60 +69,57 @@ class DeviceScheduleController extends Controller
 
         $username = env('ADAFRUIT_IO_USERNAME');
         $aioKey = env('ADAFRUIT_IO_KEY');
-        // chắc chắn APP_URL của bạn đặt trong .env là http://127.0.0.1:8000
         $internalControlUrl = config('app.url') . '/api/devices/control';
-        $applied = [];
 
-        // Lấy tất cả schedule đang enabled
+        // Lấy tất cả schedule enabled
         DeviceSchedule::where('enabled', true)
             ->get()
-            ->each(function ($sch) use (&$applied, $now, $username, $aioKey, $internalControlUrl) {
+            ->each(function ($sch) use ($now, $username, $aioKey, $internalControlUrl) {
 
-                $start = $sch->start_at->setTimezone(config('app.timezone'));
-                $end = $sch->end_at->setTimezone(config('app.timezone'));
+                // 1. Chuyển start/end về cùng timezone với $now
+                $start = Carbon::parse($sch->start_at)
+                    ->timezone('Asia/Ho_Chi_Minh');
+                $end = Carbon::parse($sch->end_at)
+                    ->timezone('Asia/Ho_Chi_Minh');
+
                 \Log::info("   schedule #{$sch->id}: $start → $end");
 
-                // 1. Lấy trạng thái hiện tại từ Adafruit
+                // 2. Kiểm tra xem hiện tại có trong window không
+                $inWindow = $now->between($start, $end, true);
+                \Log::info("    → inWindow? " . ($inWindow ? 'YES' : 'NO'));
+
+                // 3. Lấy trạng thái hiện tại của feed
                 $resp = Http::withHeaders(['X-AIO-Key' => $aioKey])
                     ->get("https://io.adafruit.com/api/v2/{$username}/feeds/{$sch->feed_key}/data?limit=1");
-                if (!$resp->successful())
+                if (!$resp->successful()) {
+                    \Log::warning("    → FAIL fetch feed {$sch->feed_key}: HTTP {$resp->status()}");
                     return;
-                $current = floatval($resp->json()[0]['value'] ?? 0);
-
-                // 2. Nếu trong khoảng [start_at, end_at) và đang OFF (0) -> BẬT
-                if ($now->between($sch->start_at, $sch->end_at, true) && $current === 0.0) {
-                    $r = Http::post($internalControlUrl, [
-                        'feed_key' => $sch->feed_key,
-                        'value' => 1
-                    ]);
-                    if ($r->successful()) {
-                        $applied[] = [
-                            'feed_key' => $sch->feed_key,
-                            'action' => 'on',
-                            'at' => $now->toDateTimeString(),
-                        ];
-                    }
                 }
-                // 3. Nếu ngoài khoảng và đang ON (1) -> TẮT
-                elseif (!$now->between($sch->start_at, $sch->end_at, true) && $current === 1.0) {
+
+                // Adafruit trả mảng, element đầu có key 'value'
+                $json = $resp->json();
+                $current = floatval(data_get($json, '0.value', 0));
+                \Log::info("    → current value: $current");
+
+                // 4. Nếu trong khoảng mà đang OFF thì ON
+                if ($inWindow && $current === 0.0) {
+                    \Log::info("    → TURN ON {$sch->feed_key}");
                     $r = Http::post($internalControlUrl, [
                         'feed_key' => $sch->feed_key,
-                        'value' => 0
+                        'value' => 1,
                     ]);
-                    if ($r->successful()) {
-                        $applied[] = [
-                            'feed_key' => $sch->feed_key,
-                            'action' => 'off',
-                            'at' => $now->toDateTimeString(),
-                        ];
-                    }
+                    \Log::info("       control resp: {$r->status()} / {$r->body()}");
+                }
+                // 5. Nếu ngoài khoảng mà đang ON thì OFF
+                elseif (!$inWindow && $current === 1.0) {
+                    \Log::info("    → TURN OFF {$sch->feed_key}");
+                    $r = Http::post($internalControlUrl, [
+                        'feed_key' => $sch->feed_key,
+                        'value' => 0,
+                    ]);
+                    \Log::info("       control resp: {$r->status()} / {$r->body()}");
                 }
             });
-
-        return response()->json([
-            'success' => true,
-            'applied' => $applied,
-        ], 200);
     }
 
     public function destroy(DeviceSchedule $schedule)
