@@ -6,6 +6,9 @@ use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\EnvironmentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\DeviceScheduleController;
+use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\ActivityLogController;
 
 Route::get('/sensors/raw-history', [SensorController::class, 'rawHistory']);
 Route::get('/sensors/history', [SensorController::class, 'history']);
@@ -20,6 +23,11 @@ Route::post('/devices/turn-off-all', [DeviceController::class, 'turnOffAll']);
 Route::post('/notifications/sync', [NotificationController::class, 'evaluateAndNotify']);
 Route::get('/notifications/all', [NotificationController::class, 'getAllNotifications']);
 
+Route::get('/activity-logs', [ActivityLogController::class, 'index']);
+
+Route::post('auth/register', [RegisterController::class, 'register']);
+Route::post('auth/login', [LoginController::class, 'login']);
+
 Route::get('/devices/status', [DeviceController::class, 'getStatus']);
 
 Route::get('/sensors/adafruit/latest', [AdafruitController::class, 'getFeedData']);
@@ -29,7 +37,7 @@ Route::get('/sensors/adafruit/current', [SensorController::class, 'getCurrentRea
 Route::post('/environment/evaluate', [EnvironmentController::class, 'fetchAndEvaluate']);
 Route::post('/sensors/data', [SensorController::class, 'storeData']);
 
-// Route::post('/devices/control', [DeviceController::class, 'updateStatus']);
-// Route::post('/devices/sync-control', [DeviceController::class, 'updateStatus']);
+Route::post('/devices/control', [DeviceController::class, 'updateStatus']);
+Route::post('/devices/sync-control', [DeviceController::class, 'updateStatus']);
 
 Route::post('/devices/control', [DeviceController::class, 'toggle']);

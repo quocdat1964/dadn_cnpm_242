@@ -28,6 +28,12 @@ class SensorSeeder extends Seeder
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
+            [
+                'name' => 'Light',
+                'feed_key' => 'light',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
         ]);
     }
 }
