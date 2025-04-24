@@ -14,6 +14,8 @@ class Sensor extends Model
     protected $fillable = [
         'name',
         'feed_key',
+        'warning_min',
+        'warning_max',
     ];
 
     public function records()

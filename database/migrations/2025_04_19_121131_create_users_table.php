@@ -14,18 +14,11 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('gender')->nullable();        // Giới tính
             $table->string('email')->unique();
-            $table->string('phone')->nullable();         // Số điện thoại
-            $table->string('username')->unique();        // Tên đăng nhập
-            $table->string('password');                  // Mật khẩu (đã mã hóa)
-            $table->string('avatar')->nullable();        // Tên file ảnh avatar
-            $table->string('ada_username')->nullable();  // Adafruit Username
-            $table->string('ada_key')->nullable(); // Adafruit Key
-            $table->rememberToken();     
+            $table->string('password');
+            $table->rememberToken(); 
             $table->timestamps();
         });
-        
     }
 
     /**

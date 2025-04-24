@@ -10,6 +10,7 @@ class RouteServiceProvider extends ServiceProvider
     /**
      * Define your route model bindings, pattern filters, etc.
      */
+    public const HOME = '/HomePage';
     public function boot()
     {
         $this->routes(function () {

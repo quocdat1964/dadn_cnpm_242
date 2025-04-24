@@ -6,7 +6,9 @@ use Illuminate\Http\Request;
 use App\Models\Sensor;
 use App\Models\Record;
 use Carbon\Carbon;
+use App\Http\Controllers\NotificationController; // ✂️ import
 use Illuminate\Support\Facades\DB;
+use GuzzleHttp\Client;
 
 use App\Events\NewSensorData; // Import event
 
@@ -65,11 +67,28 @@ class SensorController extends Controller
             ['sensor_id' => $sensor->id, 'recorded_at' => $ts],
             ['value' => $data['value']]
         );
+        // 4) Gọi API cảnh báo ngay sau khi lưu xong
+        try {
+            $notifyPayload = [
+                'feed_id' => $data['feed_id'],
+                'recorded_at' => $ts->toDateTimeString(),
+                // nếu client truyền email/chat, dùng client, ngược lại fallback env
+                'email' => $request->input('email', env('ALERT_EMAIL')),
+                'telegram_chat_id' => $request->input('telegram_chat_id', env('TELEGRAM_CHAT_ID')),
+            ];
+            // tạo một Request mới để gọi
+            $fakeRequest = new Request($notifyPayload);
+            // gọi controller
+            app(NotificationController::class)->evaluateAndNotify($fakeRequest);
+        } catch (\Throwable $e) {
+            // chỉ log, không fail toàn bộ storeData
+            Log::error('Error dispatching notification: ' . $e->getMessage());
+        }
 
         return response()->json(['success' => true], 200);
     }
 
-   
+
 
     public function getCurrentReadings(Request $request)
     {
@@ -207,6 +226,61 @@ class SensorController extends Controller
             'feed_key' => $feedKey,
             'date' => $date,
             'data' => $data,
+        ], 200);
+    }
+
+
+
+    /**
+     * GET  /api/sensors/thresholds?feed_id=temperature
+     */
+    public function getThreshold(Request $req)
+    {
+        $feed = $req->query('feed_id');
+        $sensor = Sensor::where('feed_key', $feed)->first();
+        if (!$sensor) {
+            return response()->json(['success' => false, 'error' => "Sensor '{$feed}' không tồn tại"], 404);
+        }
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'feed_id' => $sensor->feed_key,
+                'warning_min' => $sensor->warning_min,
+                'warning_max' => $sensor->warning_max,
+            ]
+        ], 200);
+    }
+
+    /**
+     * POST /api/sensors/thresholds
+     * {
+     *   "feed_id": "temperature",
+     *   "warning_min": 18.5,
+     *   "warning_max": 27.0
+     * }
+     */
+    public function setThreshold(Request $req)
+    {
+        $data = $req->validate([
+            'feed_id' => 'required|string|exists:sensors,feed_key',
+            'warning_min' => 'required|numeric',
+            'warning_max' => 'required|numeric|gt:warning_min',
+        ]);
+
+        $sensor = Sensor::where('feed_key', $data['feed_id'])->first();
+        $sensor->update([
+            'warning_min' => $data['warning_min'],
+            'warning_max' => $data['warning_max'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Cập nhật ngưỡng thành công cho '{$sensor->feed_key}'.",
+            'data' => [
+                'feed_id' => $sensor->feed_key,
+                'warning_min' => $sensor->warning_min,
+                'warning_max' => $sensor->warning_max,
+            ]
         ], 200);
     }
 

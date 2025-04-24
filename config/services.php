@@ -40,4 +40,9 @@ return [
         'key' => env('ADAFRUIT_IO_KEY'),
     ],
 
+    'telegram' => [
+        'bot_token' => env('TELEGRAM_BOT_TOKEN'),
+    ],
+
+
 ];

@@ -75,6 +75,11 @@ class DeviceController extends Controller
                 'status' => $value === 1 ? 'on' : 'off',
             ]
         );
+        // Ghi log
+        ActivityLog::create([
+            'device_name' => ucfirst($feedKey),
+            'message' => $value === 1 ? 'Turn on' : 'Turn off',
+        ]);
 
         return response()->json([
             'success' => true,
@@ -109,7 +114,7 @@ class DeviceController extends Controller
                 // Ghi log
                 ActivityLog::create([
                     'device_name' => ucfirst($feedKey),  
-                    'message' => 'Tắt thiết bị',
+                    'message' => 'Turn off',
                     'created_at' => now(),
                 ]);
             }
@@ -149,7 +154,7 @@ class DeviceController extends Controller
                         ]);
                         ActivityLog::create([
                             'device_name' => ucfirst($feedKey),  
-                            'message' => 'Bật thiết bị',
+                            'message' => 'Turn on',
                             'created_at' => now(),
                         ]);
                 }
