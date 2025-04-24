@@ -11,7 +11,7 @@ use App\Http\Controllers\TelegramController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use Illuminate\Http\Request;
-
+use App\Http\Controllers\Auth\PasswordResetController;
 
 
 Route::get('/sensors/raw-history', [SensorController::class, 'rawHistory']);
@@ -113,3 +113,6 @@ Route::middleware('auth:sanctum')->group(function () {
         ]);
     });
 });
+//cho phần quên mật khẩu
+Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLinkEmail']);
+Route::post('/reset-password', [PasswordResetController::class, 'reset']);
