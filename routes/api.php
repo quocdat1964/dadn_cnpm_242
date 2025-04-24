@@ -10,6 +10,8 @@ use App\Http\Controllers\TelegramController;
 //cho phần login anđ logout
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use Illuminate\Http\Request;
+
 
 
 Route::get('/sensors/raw-history', [SensorController::class, 'rawHistory']);
@@ -98,3 +100,16 @@ Route::post('/devices/sync-control', [DeviceController::class, 'syncControl']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login',    [AuthController::class, 'login']);
 Route::post('/logout',   [AuthController::class, 'logout'])->middleware('auth');
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/user', function(Request $request) {
+        return $request->user();
+    });
+    Route::get('/verifytoken', function(Request $request) {
+        return response()->json([
+            'message' => 'Token hợp lệ',
+            'user' => $request->user(),
+        ]);
+    });
+});
