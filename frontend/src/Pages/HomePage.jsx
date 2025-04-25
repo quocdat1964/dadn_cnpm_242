@@ -1,6 +1,11 @@
-import React, { useState, useEffect } from 'react';
+// src/pages/HomePage.jsx
+import React, { useState, useEffect, useRef } from 'react';
 import Modal from '../Components/Modal';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import ConfigForm from '../Components/ConfigForm';
+import mqtt from 'mqtt';
+import HelperModal from '../Components/HelperModal';
 import {
   FiSettings,
   FiBell,
@@ -9,195 +14,248 @@ import {
   FiCloudDrizzle,
   FiSun,
   FiEdit2,
-  FiCheckCircle,
-  FiAlertTriangle,
-  FiAlertCircle,
-  FiMenu,
+  FiHelpCircle      // thêm icon Help
 } from 'react-icons/fi';
 
-const InfoCard = ({ title, value, unit, icon: Icon, bgColor, status, warning, graphColor, cardType, onConfigure }) => {
+const USERNAME = process.env.REACT_APP_AIO_USERNAME;
+const AIO_KEY = process.env.REACT_APP_AIO_KEY;
 
+const InfoCard = ({
+  title, value, unit, icon: Icon, bgColor,
+  warning, advice, graphColor, onConfigure
+}) => {
   const graphStyle = {
-    background: `linear-gradient(to top, rgba(255,255,255,0.1), ${graphColor || 'rgba(255,255,255,0.5)'})`,
+    background: `linear-gradient(to top, rgba(255,255,255,0.1), ${graphColor})`,
     height: '50px',
-    maskImage: 'url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjUwIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGQ9Ik0wIDUwIFEgNzUgMCwgMTUwIDMwIFQgMzAwIDIwIFYgNTBaIiBmaWxsPSJibGFjayIvPjwvc3ZnPg==)', // SVG mask tạo hình sóng
+    maskImage: 'url(data:image/svg+xml;base64,...)',
+    WebkitMaskImage: 'url(data:image/svg+xml;base64,...)',
     maskSize: '100% 100%',
-    WebkitMaskImage: 'url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjUwIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGQ9Ik0wIDUwIFEgNzUgMCwgMTUwIDMwIFQgMzAwIDIwIFYgNTBaIiBmaWxsPSJibGFjayIvPjwvc3ZnPg==)', // Cho Safari/Chrome
     WebkitMaskSize: '100% 100%',
   };
 
-
   return (
-    <div className={`rounded-lg shadow-md p-5 ${bgColor} text-gray-800 flex flex-col justify-between min-h-[280px]`}>
+    <div className={`rounded-lg shadow-md p-5 ${bgColor} text-gray-800 flex flex-col justify-between min-h-[300px]`}>
       <div>
         <div className="flex justify-between items-start mb-3">
           <h3 className="font-bold text-lg">{title}</h3>
           <Icon size={28} className="text-gray-700 opacity-80" />
         </div>
         <div className="text-4xl font-bold mb-1">
-          {value}
-          {unit && <span className="text-3xl align-top ml-1">{unit}</span>}
+          {value}{unit && <span className="text-3xl align-top ml-1">{unit}</span>}
         </div>
         <div className="w-full mt-2 mb-4 opacity-70" style={graphStyle}></div>
       </div>
-      <div className="text-sm mt-auto">
-        <p><span className="font-semibold">Tình trạng:</span> {status || 'Đang cập nhật...'}</p>
+      <div className="text-sm space-y-1">
         <p><span className="font-semibold">Cảnh báo:</span> {warning || 'Không có'}</p>
+        <p><span className="font-semibold">Khuyến nghị:</span> {advice || 'Không có khuyến nghị'}</p>
+      </div>
+      <div className="mt-2 flex justify-end">
         <button
-          onClick={() => onConfigure(cardType, title)}
-          className="text-xs text-gray-600 hover:text-gray-900 mt-2 flex items-center ml-auto"
+          onClick={onConfigure}
+          className="text-xs text-gray-600 hover:text-gray-900 flex items-center"
         >
-          <FiEdit2 size={12} className="mr-1" /> Tuỳ chỉnh
+          <FiEdit2 size={12} className="mr-1" />Tuỳ chỉnh
         </button>
       </div>
     </div>
   );
 };
 
-
 const HomePage = () => {
-  const [farmData, setFarmData] = useState({ temperature: null, humidity: null, soil_moisture: null, light: null });
+  const [farmData, setFarmData] = useState({ status: {}, warnings: {}, advice: {} });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [editingConfig, setEditingConfig] = useState(null);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);        // state cho Helper modal
+  const clientRef = useRef(null);
 
-  const [configurations, setConfigurations] = useState({
-    temperature: { low: '15', high: '35', timeValue: '5', timeUnit: 'Min' },
-    humidity: { low: '40', high: '70', timeValue: '10', timeUnit: 'Min' },
-    soil_moisture: { low: '30', high: '60', timeValue: '30', timeUnit: 'Min' },
-    light: { low: '1000', high: '50000', timeValue: '1', timeUnit: 'Hr' }
-  });
+  const feeds = [
+    { key: 'temperature', feed_id: 'temperature' },
+    { key: 'air_humidity', feed_id: 'air-humidity' },
+    { key: 'soil_moisture', feed_id: 'soil-moisturer' },
+    { key: 'light', feed_id: 'light' }
+  ];
 
+  // Polling data
   useEffect(() => {
-
     const fetchData = async () => {
-      setLoading(true); setError(null);
       try {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        const data = {
-          temperature: 30, humidity: 50, soil_moisture: 50, light: 40000,
-          status: { temperature: "Ổn định", humidity: "Bình thường", soil_moisture: "Hơi khô", light: "Đủ sáng" },
-          warnings: { soil_moisture: "Cần tưới thêm nước" }
-        };
-        setFarmData(data);
-      } catch (err) { setError(err.message); console.error("Lỗi fetch data:", err); }
-      finally { setLoading(false); }
+        const results = await Promise.all(feeds.map(({ key, feed_id }) =>
+          fetch('http://127.0.0.1:8000/api/environment/evaluate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ feed_id })
+          })
+            .then(r => { if (!r.ok) throw new Error(feed_id); return r.json(); })
+            .then(json => ({ key, ...json.data }))
+        ));
+        const newData = { status: {}, warnings: {}, advice: {} };
+        results.forEach(({ key, value, status, warning, advice }) => {
+          newData[key] = value;
+          newData.status[key] = status;
+          newData.warnings[key] = warning;
+          newData.advice[key] = advice;
+        });
+        setFarmData(newData);
+        setError(null);
+      } catch (e) {
+        setError(`Không tải được dữ liệu: ${e.message}`);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
+    const interval = setInterval(fetchData, 10000);
+    return () => clearInterval(interval);
   }, []);
 
-  const currentDate = new Date().toLocaleDateString('vi-VN', {
-    day: 'numeric', month: 'long', year: 'numeric',
-  });
-
-  const handleOpenModal = (cardType, cardTitle) => {
-    console.log("Mở modal cho:", cardType);
-    const currentConfig = configurations[cardType] || {}; 
-    setEditingConfig({
-      type: cardType, 
-      title: cardTitle, 
-      ...currentConfig 
+  // MQTT silent connect
+  useEffect(() => {
+    const client = mqtt.connect('wss://io.adafruit.com:443', {
+      username: USERNAME,
+      password: AIO_KEY,
+      connectTimeout: 4000
     });
-    setIsModalOpen(true); // Mở modal
+    clientRef.current = client;
+    client.on('message', () => { });
+    return () => client.end();
+  }, []);
+
+  const openConfig = (feed_id) => {
+    setEditingConfig({ type: feed_id, low: '', high: '', loading: true });
+    setIsConfigOpen(true);
+    fetch(`http://127.0.0.1:8000/api/sensors/thresholds?feed_id=${feed_id}`)
+      .then(res => res.json())
+      .then(json => {
+        if (!json.success) throw new Error();
+        setEditingConfig({
+          type: feed_id,
+          low: json.data.warning_min.toString(),
+          high: json.data.warning_max.toString(),
+          loading: false
+        });
+      })
+      .catch(() => {
+        toast.error('Không tải được ngưỡng cảnh báo');
+        setIsConfigOpen(false);
+      });
   };
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setEditingConfig(null); 
+  const saveConfig = async ({ type, low, high }) => {
+    try {
+      const res = await fetch('http://127.0.0.1:8000/api/sensors/thresholds', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feed_id: type, warning_min: parseFloat(low), warning_max: parseFloat(high) })
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error();
+      toast.success('Cập nhật ngưỡng thành công');
+      setIsConfigOpen(false);
+    } catch {
+      toast.error('Lưu ngưỡng thất bại');
+    }
   };
 
-  const handleSaveConfig = (newConfig) => {
-    console.log('Lưu cấu hình từ HomePage:', newConfig);
-
-    setConfigurations(prev => ({
-      ...prev,
-      [newConfig.type]: {
-        low: newConfig.low,
-        high: newConfig.high,
-        timeValue: newConfig.timeValue,
-        timeUnit: newConfig.timeUnit
-      }
-    }));
-
-    console.log("Cấu hình đã cập nhật:", configurations);
-
-    handleCloseModal();
-  };
+  const today = new Date().toLocaleDateString('vi-VN', {
+    day: 'numeric', month: 'long', year: 'numeric'
+  });
+  if (loading) return <div className="flex items-center justify-center h-screen"><p>Đang tải...</p></div>;
+  if (error) return <p className="text-red-500 text-center mt-10">{error}</p>;
 
   return (
     <>
+      <ToastContainer position="top-right" />
+
       {/* Header */}
-      <header className="flex items-center justify-between pb-5 border-b mb-6 bg-white">
+      <header className="flex items-center justify-between p-5 bg-white border-b sticky top-0 z-20">
         <div>
-          <h1 className="text-xl font-semibold text-gray-800">Hello Danny, here is your farm today:</h1>
-          <p className="text-sm text-gray-500">{currentDate}</p>
+          <h1 className="text-2xl font-bold">Hello Danny, đây là trang trại của bạn:</h1>
+          <p className="text-sm text-gray-500">{today}</p>
         </div>
-        <div className="flex items-center space-x-4">
-          <button className="text-gray-500 hover:text-gray-700"><FiSettings size={20} /></button>
-          <button className="text-gray-500 hover:text-gray-700 relative"><FiBell size={20} /></button>
+        <div className="flex space-x-4 items-center">
+          {/* Helper button */}
+          <button
+            onClick={() => setIsHelpOpen(true)}
+            className="text-gray-600 hover:text-gray-900"
+            title="Trợ giúp"
+          >
+            <FiHelpCircle size={20} />
+          </button>
+          <button><FiBell size={20} /></button>
+          <button><FiSettings size={20} /></button>
         </div>
       </header>
 
-      {/* Khu vực nội dung */}
-      <div className="flex-grow flex flex-col">
-        {loading && <p className="text-center text-gray-500 py-10">Đang tải dữ liệu...</p>}
-        {error && <p className="text-center text-red-500 py-10">Lỗi tải dữ liệu: {error}</p>}
-
-        {!loading && !error && (
-          <>
-            {/* Grid Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              {/* Truyền cardType và onConfigure cho mỗi thẻ */}
-              <InfoCard
-                title="Nhiệt độ" value={farmData.temperature} unit="°C" icon={FiThermometer} bgColor="bg-orange-100"
-                status={farmData.status?.temperature} warning={farmData.warnings?.temperature} graphColor="#FED7AA"
-                cardType="temperature" onConfigure={handleOpenModal}
-              />
-              <InfoCard
-                title="Độ ẩm môi trường" value={farmData.humidity} unit="%" icon={FiDroplet} bgColor="bg-blue-100"
-                status={farmData.status?.humidity} warning={farmData.warnings?.humidity} graphColor="#BEE3F8"
-                cardType="humidity" onConfigure={handleOpenModal}
-              />
-              <InfoCard
-                title="Độ ẩm đất" value={farmData.soil_moisture} unit="%" icon={FiCloudDrizzle} bgColor="bg-yellow-700 bg-opacity-30"
-                status={farmData.status?.soil_moisture} warning={farmData.warnings?.soil_moisture} graphColor="#FBD38D"
-                cardType="soil_moisture" onConfigure={handleOpenModal}
-              />
-              <InfoCard
-                title="Ánh sáng" value={farmData.light} unit="Lux" icon={FiSun} bgColor="bg-yellow-100"
-                status={farmData.status?.light} warning={farmData.warnings?.light} graphColor="#FEFCBF"
-                cardType="light" onConfigure={handleOpenModal}
-              />
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex justify-center space-x-6 mt-auto pb-6">
-              <button className="bg-green-500 hover:bg-green-600 text-white rounded-full p-4 shadow-lg transition-transform transform hover:scale-110"> <FiCheckCircle size={24} /> </button>
-              <button className="bg-yellow-500 hover:bg-yellow-600 text-white rounded-full p-4 shadow-lg transition-transform transform hover:scale-110"> <FiAlertTriangle size={24} /> </button>
-              <button className="bg-red-500 hover:bg-red-600 text-white rounded-full p-4 shadow-lg transition-transform transform hover:scale-110"> <FiAlertCircle size={24} /> </button>
-            </div>
-          </>
-        )}
+      {/* Cards */}
+      <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {feeds.map(f => (
+          <InfoCard
+            key={f.key}
+            title={{
+              temperature: 'Nhiệt độ',
+              air_humidity: 'Độ ẩm môi trường',
+              soil_moisture: 'Độ ẩm đất',
+              light: 'Ánh sáng'
+            }[f.key]}
+            value={farmData[f.key]}
+            unit={{
+              temperature: '°C',
+              air_humidity: '%',
+              soil_moisture: '%',
+              light: '%'
+            }[f.key]}
+            icon={{
+              temperature: FiThermometer,
+              air_humidity: FiDroplet,
+              soil_moisture: FiCloudDrizzle,
+              light: FiSun
+            }[f.key]}
+            bgColor={{
+              temperature: 'bg-orange-200',
+              air_humidity: 'bg-blue-200',
+              soil_moisture: 'bg-yellow-700 bg-opacity-40',
+              light: 'bg-yellow-200'
+            }[f.key]}
+            graphColor={{
+              temperature: '#FEB2B2',
+              air_humidity: '#90CDF4',
+              soil_moisture: '#F6E05E',
+              light: '#FAF089'
+            }[f.key]}
+            warning={farmData.warnings[f.key]}
+            advice={farmData.advice[f.key]}
+            onConfigure={() => openConfig(f.feed_id)}
+          />
+        ))}
       </div>
 
-      {/* --- Render Modal --- */}
+      {/* Config Modal */}
       <Modal
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        title={`Tuỳ chỉnh ngưỡng cảnh báo - ${editingConfig?.title || ''}`}
+        isOpen={isConfigOpen}
+        onClose={() => setIsConfigOpen(false)}
+        title={`Tuỳ chỉnh ngưỡng cảnh báo – ${editingConfig?.type}`}
       >
-
         {editingConfig && (
           <ConfigForm
-            configData={editingConfig} 
-            onSave={handleSaveConfig} 
-            onCancel={handleCloseModal} 
+            configData={editingConfig}
+            onSave={saveConfig}
+            onCancel={() => setIsConfigOpen(false)}
           />
         )}
       </Modal>
+
+      <HelperModal
+        isOpen={isHelpOpen}
+        onClose={() => setIsHelpOpen(false)}
+        title="Trợ giúp sử dụng"
+      >
+        <p>• Trang hiển thị 4 chỉ số môi trường: Nhiệt độ, Độ ẩm môi trường, Độ ẩm đất và Ánh sáng.</p>
+        <p>• Dữ liệu tự động cập nhật mỗi 10 giây.</p>
+        <p>• Nhấn “Tuỳ chỉnh” dưới mỗi ô để thay đổi ngưỡng cảnh báo.</p>
+        <p>• Biểu tượng chuông để xem thông báo, bánh răng để vào cài đặt chung.</p>
+      </HelperModal >
     </>
   );
 };

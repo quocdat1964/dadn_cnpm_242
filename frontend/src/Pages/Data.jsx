@@ -1,192 +1,300 @@
 // src/pages/Data.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Fragment } from 'react';
 import SensorChart from '../Components/SensorChart';
+import HelperModal from '../Components/HelperModal'; // ← thêm import
 import {
     FiSettings as PageSettingsIcon,
     FiBell,
-    FiCalendar,
     FiChevronDown,
-    FiLoader
+    FiChevronLeft,
+    FiChevronRight,
+    FiHelpCircle,
+    FiLoader,
 } from 'react-icons/fi';
 import dayjs from 'dayjs';
-import 'dayjs/locale/vi';
+import 'dayjs/locale/en';
 import { Menu, Transition } from '@headlessui/react';
-import { Fragment } from 'react';
 
-dayjs.locale('vi');
+dayjs.locale('en');
+
+const USERNAME = process.env.REACT_APP_AIO_USERNAME;
+const AIO_KEY = process.env.REACT_APP_AIO_KEY;
+
+
 const sensorTypes = [
-    { id: 'temperature', name: 'Nhiệt độ', unit: '°C', color: 'rgb(255, 99, 132)' },
-    { id: 'humidity', name: 'Độ ẩm MT', unit: '%', color: 'rgb(54, 162, 235)' },
-    { id: 'soil_moisture', name: 'Độ ẩm đất', unit: '%', color: 'rgb(139, 69, 19)' }, // Brown
-    { id: 'light', name: 'Ánh sáng', unit: 'Lux', color: 'rgb(255, 205, 86)' } // Yellow
+    { id: 'temperature', name: 'Temperature', unit: '°C', color: 'rgb(255, 99, 132)' },
+    { id: 'humidity', name: 'Air Humidity', unit: '%', color: 'rgb(54, 162, 235)' },
+    { id: 'soil_moisture', name: 'Soil Moisture', unit: '%', color: 'rgb(139, 69, 19)' },
+    { id: 'light', name: 'Light', unit: 'Lux', color: 'rgb(255, 205, 86)' }
 ];
 
-const dateOptions = {
-    today: { label: 'Hôm nay', value: 'today' },
-    yesterday: { label: 'Hôm qua', value: 'yesterday' },
-    dayBeforeYesterday: { label: '2 hôm trước', value: 'dayBeforeYesterday' }
+const feedKeyMap = {
+    temperature: 'temperature',
+    humidity: 'air-humidity',
+    soil_moisture: 'soil-moisturer',
+    light: 'light'
 };
 
-const Data = () => {
-    const [selectedPeriod, setSelectedPeriod] = useState(dateOptions.today.value);
+const granularityOptions = [
+    { value: 'year', label: 'Yearly' },
+    { value: 'month', label: 'Monthly' },
+    { value: 'day', label: 'Daily' },
+    { value: 'range', label: 'Custom' }
+];
+
+// Compute Plant Health Index (PHI)
+function computeTomatoPHI({ temperature, airHumidity, soilMoisture, light }) {
+    let score = 0;
+    if (temperature >= 18 && temperature <= 25) score += 25;
+    else if (temperature >= 15 && temperature <= 30) score += 15;
+    if (airHumidity >= 60 && airHumidity <= 70) score += 25;
+    else if (airHumidity >= 50 && airHumidity <= 80) score += 15;
+    if (soilMoisture >= 50 && soilMoisture <= 70) score += 25;
+    else if (soilMoisture >= 40 && soilMoisture <= 80) score += 15;
+    if (light >= 10000 && light <= 20000) score += 25;
+    else if (light >= 5000 && light <= 30000) score += 15;
+    return Math.round(score);
+}
+
+export default function Data() {
+    const now = dayjs();
+    const [granularity, setGranularity] = useState('day');
+    const [startTime, setStartTime] = useState(now.startOf('day').format('YYYY-MM-DDTHH:mm'));
+    const [endTime, setEndTime] = useState(now.endOf('day').format('YYYY-MM-DDTHH:mm'));
+    const [isHelpOpen, setIsHelpOpen] = useState(false);
     const [chartData, setChartData] = useState({});
+    const [phiData, setPhiData] = useState({ labels: [], values: [] });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    const fetchData = useCallback(async (period) => {
+
+    // Shift the displayed period backward/forward
+    const shiftPeriod = dir => {
+        let s = dayjs(startTime), e = dayjs(endTime);
+        if (granularity === 'year') { s = s.add(dir, 'year'); e = e.add(dir, 'year'); }
+        if (granularity === 'month') { s = s.add(dir, 'month'); e = e.add(dir, 'month'); }
+        if (granularity === 'day') { s = s.add(dir, 'day'); e = e.add(dir, 'day'); }
+        setStartTime(s.format('YYYY-MM-DDTHH:mm'));
+        setEndTime(e.format('YYYY-MM-DDTHH:mm'));
+    };
+
+    // Fetch sensor charts and compute PHI
+    const fetchData = useCallback(async () => {
         setLoading(true);
         setError(null);
-        setChartData({}); // Xóa dữ liệu cũ khi fetch mới
 
-        let targetDate;
-        const today = dayjs();
-        if (period === 'today') {
-            targetDate = today;
-        } else if (period === 'yesterday') {
-            targetDate = today.subtract(1, 'day');
-        } else if (period === 'dayBeforeYesterday') {
-            targetDate = today.subtract(2, 'day');
-        } else {
-            targetDate = today; // Mặc định là hôm nay
+        const s = dayjs(startTime), e = dayjs(endTime);
+        if (!s.isValid() || !e.isValid()) {
+            setError('Invalid start or end time');
+            setLoading(false);
+            return;
         }
-
-        const dateString = targetDate.format('YYYY-MM-DD');
-        console.log(`Workspaceing data for: ${dateString} (period: ${period})`);
+        const startISO = s.toISOString();
+        const endISO = e.toISOString();
 
         try {
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            const generateMockData = (baseValue, fluctuation) => {
-                const values = [];
-                const labels = [];
-                for (let i = 0; i < 12; i++) { // 12 điểm dữ liệu
-                    const hour = i * 2; // Cách nhau 2 giờ
-                    labels.push(`${hour.toString().padStart(2, '0')}:00`);
-                    // Tạo giá trị dao động quanh baseValue, cộng thêm yếu tố ngẫu nhiên theo ngày
-                    let value = baseValue + (Math.random() - 0.5) * fluctuation;
-                    if (period === 'yesterday') value *= 0.95; // Giả sử hôm qua mát hơn
-                    if (period === 'dayBeforeYesterday') value *= 1.05; // Giả sử 2 hôm trước nóng hơn
-                    values.push(Math.max(0, Math.round(value * 10) / 10)); // Làm tròn và đảm bảo không âm
-                }
-                return { labels, values };
-            };
+            const results = await Promise.all(sensorTypes.map(async sensor => {
+                const feedKey = feedKeyMap[sensor.id];
+                const url = new URL(`https://io.adafruit.com/api/v2/${USERNAME}/feeds/${feedKey}/data/chart`);
+                url.searchParams.set('start_time', startISO);
+                url.searchParams.set('end_time', endISO);
+                url.searchParams.set('field', 'avg');
 
-            const mockApiResponse = {
-                temperature: generateMockData(28, 5),      // Nhiệt độ ~28 độ, dao động 5
-                humidity: generateMockData(65, 15),       // Độ ẩm ~65%, dao động 15
-                soil_moisture: generateMockData(50, 20), // Độ ẩm đất ~50%, dao động 20
-                light: generateMockData(600, 400),      // Ánh sáng ~600 Lux, dao động 400
-            };
-            setChartData(mockApiResponse);
+                const res = await fetch(url, {
+                    headers: {
+                        'X-AIO-Key': AIO_KEY,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const json = await res.json();
+
+                const labels = json.data.map(r => dayjs(r[0]).format('DD/MM/YYYY HH:mm'));
+                const values = json.data.map(r => parseFloat(r[1]));
+                return { id: sensor.id, labels, values };
+            }));
+
+            // Pivot results
+            const byId = results.reduce((acc, { id, labels, values }) => {
+                acc[id] = { labels, values };
+                return acc;
+            }, {});
+            setChartData(byId);
+
+            // Compute PHI
+            if (results.length) {
+                const ts = results[0].labels;
+                const phis = ts.map((_, i) => {
+                    const t = byId.temperature.values[i] || 0;
+                    const h = byId.humidity.values[i] || 0;
+                    const sm = byId.soil_moisture.values[i] || 0;
+                    const l = byId.light.values[i] || 0;
+                    return computeTomatoPHI({ temperature: t, airHumidity: h, soilMoisture: sm, light: l });
+                });
+                setPhiData({ labels: ts, values: phis });
+            }
 
         } catch (err) {
-            console.error("Failed to fetch sensor data:", err);
-            setError(`Không thể tải dữ liệu${err instanceof Error ? `: ${err.message}` : ''}`);
-            setChartData({}); // Đảm bảo không hiển thị biểu đồ cũ khi lỗi
+            console.error(err);
+            setError(err.message);
         } finally {
             setLoading(false);
         }
-    }, []); // useCallback không có dependencies vì các hàm bên trong không thay đổi
+    }, [startTime, endTime]);
 
-    // useEffect để gọi fetchData khi selectedPeriod thay đổi
+    // Reset start/end when granularity changes (except 'range')
     useEffect(() => {
-        fetchData(selectedPeriod);
-    }, [selectedPeriod, fetchData]);
+        const n = dayjs();
+        let s, e;
+        if (granularity === 'year') { s = n.startOf('year'); e = n.endOf('year'); }
+        if (granularity === 'month') { s = n.startOf('month'); e = n.endOf('month'); }
+        if (granularity === 'day') { s = n.startOf('day'); e = n.endOf('day'); }
+        if (granularity !== 'range') {
+            setStartTime(s.format('YYYY-MM-DDTHH:mm'));
+            setEndTime(e.format('YYYY-MM-DDTHH:mm'));
+        }
+    }, [granularity]);
 
-    const handleDateChange = (newPeriod) => {
-        setSelectedPeriod(newPeriod);
-    };
+    useEffect(() => { fetchData(); }, [fetchData]);
 
     return (
         <Fragment>
-            {/* Header */}
-            <header className="flex items-center justify-between p-5 border-b bg-white sticky top-0 z-20">
-                <div className="flex items-center">
-                    <h1 className="text-2xl font-bold text-gray-800">LỊCH SỬ CÁC THÔNG SỐ</h1>
-                </div>
-                <div className="flex items-center space-x-4">
-                    {/* Date Selector Dropdown */}
-                    <Menu as="div" className="relative inline-block text-left">
-                        <div>
-                            <Menu.Button className="inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-100">
-                                {dateOptions[selectedPeriod].label}
-                                <FiChevronDown className="-mr-1 ml-2 h-5 w-5" aria-hidden="true" />
-                            </Menu.Button>
+            <div className="h-screen flex flex-col">
+                {/* HEADER */}
+                <header className="bg-white border-b flex-shrink-0">
+                    <div className="max-w-6xl mx-auto px-5 py-4 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <h1 className="text-2xl font-semibold">SENSOR DATA HISTORY</h1>
+
+                        </div>
+                        <div className="flex gap-4">
+                            <button
+                                onClick={() => setIsHelpOpen(true)}
+                                className="text-gray-600 hover:text-gray-900"
+                                title="Help"
+                            >
+                                <FiHelpCircle size={20} />
+                            </button>
+                            <PageSettingsIcon className="text-gray-600 hover:text-gray-900" size={20} />
+                            <FiBell className="text-gray-600 hover:text-gray-900" size={20} />
+                        </div>
+                    </div>
+                </header>
+
+                {/* MAIN with scroll */}
+                <main className="flex-1 overflow-y-auto bg-gray-50">
+                    <div className="max-w-6xl mx-auto px-5 py-6">
+                        {/* Control Bar */}
+                        <div className="bg-white border p-4 rounded mb-6 flex flex-wrap items-center justify-between gap-4">
+                            <Menu as="div" className="relative">
+                                <Menu.Button className="inline-flex items-center px-4 py-2 border rounded hover:bg-gray-100">
+                                    {granularityOptions.find(o => o.value === granularity).label}
+                                    <FiChevronDown className="ml-2 h-5 w-5" />
+                                </Menu.Button>
+                                <Transition as={Fragment}>
+                                    <Menu.Items className="absolute mt-2 w-40 bg-white shadow rounded">
+                                        {granularityOptions.map(opt => (
+                                            <Menu.Item key={opt.value}>
+                                                {({ active }) => (
+                                                    <button
+                                                        onClick={() => setGranularity(opt.value)}
+                                                        className={`block w-full px-4 py-2 text-left ${active ? 'bg-gray-100' : ''}`}
+                                                    >{opt.label}</button>
+                                                )}
+                                            </Menu.Item>
+                                        ))}
+                                    </Menu.Items>
+                                </Transition>
+                            </Menu>
+
+                            {granularity === 'range' && (
+                                <div className="flex gap-4 items-end">
+                                    <div>
+                                        <label className="text-sm text-gray-600 block">From</label>
+                                        <input
+                                            type="datetime-local"
+                                            value={startTime}
+                                            onChange={e => setStartTime(e.target.value)}
+                                            className="border rounded p-1"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm text-gray-600 block">To</label>
+                                        <input
+                                            type="datetime-local"
+                                            value={endTime}
+                                            onChange={e => setEndTime(e.target.value)}
+                                            className="border rounded p-1"
+                                        />
+                                    </div>
+                                    {/* <button
+                                        onClick={fetchData}
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded"
+                                    >Apply</button> */}
+                                </div>
+                            )}
+
+                            <div className="ml-auto flex items-center gap-2">
+                                <button
+                                    onClick={() => shiftPeriod(-1)}
+                                    className="p-2 bg-white border rounded hover:bg-gray-100"
+                                    title="Previous"
+                                ><FiChevronLeft /></button>
+                                <button
+                                    onClick={() => shiftPeriod(1)}
+                                    className="p-2 bg-white border rounded hover:bg-gray-100"
+                                    title="Next"
+                                ><FiChevronRight /></button>
+                            </div>
                         </div>
 
-                        <Transition
-                            as={Fragment}
-                            enter="transition ease-out duration-100"
-                            enterFrom="transform opacity-0 scale-95"
-                            enterTo="transform opacity-100 scale-100"
-                            leave="transition ease-in duration-75"
-                            leaveFrom="transform opacity-100 scale-100"
-                            leaveTo="transform opacity-0 scale-95"
-                        >
-                            <Menu.Items className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                                <div className="py-1">
-                                    {Object.values(dateOptions).map((option) => (
-                                        <Menu.Item key={option.value}>
-                                            {({ active }) => (
-                                                <button
-                                                    onClick={() => handleDateChange(option.value)}
-                                                    className={`${active ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
-                                                        } ${selectedPeriod === option.value ? 'font-bold' : ''
-                                                        } group flex w-full items-center rounded-md px-4 py-2 text-sm`}
-                                                >
-                                                    {option.label}
-                                                </button>
-                                            )}
-                                        </Menu.Item>
+                        {/* Sensor Charts */}
+                        {loading ? (
+                            <div className="flex justify-center items-center py-20">
+                                <FiLoader className="animate-spin text-indigo-600 mr-3" size={24} />
+                                <span>Loading data...</span>
+                            </div>
+                        ) : error ? (
+                            <div className="bg-red-100 text-red-700 p-4 rounded mb-6">{error}</div>
+                        ) : (
+                            <>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                                    {sensorTypes.map(sensor => (
+                                        <SensorChart
+                                            key={sensor.id}
+                                            title={sensor.name}
+                                            chartData={chartData[sensor.id] || { labels: [], values: [] }}
+                                            yAxisLabel={sensor.unit}
+                                            lineColor={sensor.color}
+                                        />
                                     ))}
                                 </div>
-                            </Menu.Items>
-                        </Transition>
-                    </Menu>
 
-                    <button className="text-gray-500 hover:text-gray-700">
-                        <PageSettingsIcon size={20} />
-                    </button>
-                    <button className="text-gray-500 hover:text-gray-700 relative">
-                        <FiBell size={20} />
-                    </button>
-                </div>
-            </header>
-
-            {/* Chart Grid Area */}
-            <div className="p-6 flex-grow">
-                {loading && (
-                    <div className="flex justify-center items-center h-full">
-                        <FiLoader className="animate-spin text-blue-500 mr-3" size={24} />
-                        <p className="text-gray-600">Đang tải dữ liệu...</p>
+                                {/* PHI Chart */}
+                                {phiData.labels.length > 0 && (
+                                    <div className="relative bg-white border rounded p-4 shadow mb-8">
+                                        <div className="absolute top-2 right-2 bg-white bg-opacity-75 px-2 py-1 text-xs font-semibold rounded">
+                                            PHI
+                                        </div>
+                                        <h2 className="text-lg font-semibold mb-3">Plant Health Index</h2>
+                                        <SensorChart
+                                            title=""
+                                            chartData={phiData}
+                                            yAxisLabel="PHI (0–100)"
+                                            lineColor="rgba(34,197,94,0.8)"
+                                        />
+                                    </div>
+                                )}
+                            </>
+                        )}
                     </div>
-                )}
-                {error && (
-                    <div className="text-center text-red-600 bg-red-100 p-4 rounded border border-red-300">
-                        <p><strong>Lỗi:</strong> {error}</p>
-                    </div>
-                )}
-                {!loading && !error && Object.keys(chartData).length > 0 && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {sensorTypes.map(sensor => (
-                            <SensorChart
-                                key={sensor.id}
-                                title={sensor.name}
-                                chartData={chartData[sensor.id] || { labels: [], values: [] }} // Truyền dữ liệu tương ứng
-                                yAxisLabel={sensor.unit}
-                                lineColor={sensor.color}
-                            />
-                        ))}
-                    </div>
-                )}
-                {!loading && !error && Object.keys(chartData).length === 0 && (
-                    <div className="text-center text-gray-500 mt-10">
-                        <FiCalendar size={40} className="mx-auto mb-2" />
-                        <p>Không có dữ liệu cho ngày đã chọn.</p>
-                    </div>
-                )}
+                </main>
             </div>
+            <HelperModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} title="Usage Help">
+                <p>• Chọn khoảng thời gian để xem lịch sử dữ liệu cảm biến (daily/monthly/...)</p>
+                <p>• Sử dụng nút ← → để chuyển nhanh giữa các khoảng trước/sau.</p>
+                <p>• Biểu đồ PHI sẽ hiển thị chỉ số Plant Health Index tính toán từ dữ liệu.</p>
+            </HelperModal>
         </Fragment>
     );
-};
-
-export default Data;
+}

@@ -1,287 +1,372 @@
-// src/pages/Devices.jsx
-import React, { useState, Fragment } from 'react';
+import React, { useState, useEffect, Fragment, useRef } from 'react';
 import SettingsModal from '../Components/SettingModal';
 import DeviceCard from '../Components/DeviceCard';
 import ScheduleEntry from '../Components/ScheduleEntry';
-import pump from '../image/water_pump.png'
+import { Dialog, Transition } from '@headlessui/react';
+import pumpImg from '../image/water_pump.png';
+import HelperModal from '../Components/HelperModal'; // thêm import
+
 import {
     FiSettings as PageSettingsIcon,
     FiBell,
     FiPlus,
     FiPower,
-    FiZap, 
-    FiDroplet
+    FiZap,
+    FiDroplet,
+    FiEdit2,
+    FiHelpCircle,
+    FiTrash2
 } from 'react-icons/fi';
+import dayjs from 'dayjs';
+import 'dayjs/locale/vi';
+import mqtt from 'mqtt';
 
-const initialDevicesData = {
-    light1: { id: 'light1', name: 'Đèn', type: 'light', statusText: 'Ánh sáng 30 LUX', isOn: false, isManual: true, settings: { threshold: 50 } },
-    pump1: { id: 'pump1', name: 'Máy bơm', type: 'pump', statusText: 'Độ ẩm đất 30 %', isOn: false, isManual: true, settings: { duration: 10 } },
-    light2: { id: 'light2', name: 'Đèn', type: 'light', statusText: 'Ánh sáng 30 LUX', isManual: false, settings: { threshold: 70 } },
-    pump2: { id: 'pump2', name: 'Máy bơm', type: 'pump', statusText: 'Độ ẩm đất 30 %', isManual: false, settings: { threshold: 40 } },
-};
+dayjs.locale('vi');
 
-const initialSchedulesData = [
-    { id: 'sch1', deviceName: 'Đèn', deviceType: 'light', icon: FiZap, startTime: '8 pm', endTime: '8 am', isActive: true },
-    { id: 'sch2', deviceName: 'Máy bơm', deviceType: 'pump', icon: FiDroplet, startTime: '8 pm', endTime: '8 am', isActive: true },
-];
+const USERNAME = process.env.REACT_APP_AIO_USERNAME;
+const AIO_KEY = process.env.REACT_APP_AIO_KEY;
 
-const Devices = () => {
-    const [devices, setDevices] = useState(initialDevicesData);
-    const [schedules, setSchedules] = useState(initialSchedulesData);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingDeviceKey, setEditingDeviceKey] = useState(null); 
+const SENSOR_FEEDS = { light1: 'light', pump1: 'soil-moisturer' };
+const CONTROL_FEEDS = { light1: 'led', pump1: 'pumper' };
 
-    // Bật/tắt thiết bị thủ công
-    const handleManualToggle = async (deviceKey) => {
-        const deviceToToggle = devices[deviceKey];
-        if (!deviceToToggle || !deviceToToggle.isManual) return;
+export default function Devices() {
+    const [devices, setDevices] = useState({
+        light1: { id: 'light1', name: 'Led RGB', type: 'light', statusText: '-- Lux', isOn: false },
+        pump1: { id: 'pump1', name: 'Pumper', type: 'pumper', statusText: '-- %', isOn: false }
+    });
+    const [schedules, setSchedules] = useState([]);
+    const [editingSchedulesMode, setEditingSchedulesMode] = useState(false);
+    const [showScheduleModal, setShowScheduleModal] = useState(false);
+    const [editingSchedule, setEditingSchedule] = useState(null);
+    const [newSchedule, setNewSchedule] = useState({
+        feed_key: CONTROL_FEEDS.light1,
+        start_at: '',
+        end_at: ''
+    });
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [editingDeviceKey, setEditingDeviceKey] = useState(null);
+    const [showHelp, setShowHelp] = useState(false);
 
-        const newIsOn = !deviceToToggle.isOn;
-        setDevices(prev => ({
-            ...prev,
-            [deviceKey]: { ...prev[deviceKey], isOn: newIsOn }
-        }));
+    const clientRef = useRef(null);
 
-        try {
-            console.log(`API CALL: Toggling ${deviceKey} to ${newIsOn}`);
-            // await api.updateDeviceStatus(deviceKey, { isOn: newIsOn }); // Gọi API thật
-        } catch (error) {
-            console.error(`Failed to toggle ${deviceKey}:`, error);
-            // Rollback state nếu API lỗi
-            setDevices(prev => ({
-                ...prev,
-                [deviceKey]: { ...prev[deviceKey], isOn: !newIsOn } 
-            }));
-        }
-    };
+    // 1) Load schedules
+    useEffect(() => {
+        fetch('http://127.0.0.1:8000/api/device-schedules')
+            .then(res => res.json())
+            .then(json => { if (json.success) setSchedules(json.data); })
+            .catch(e => console.error('Schedules fetch error', e));
+    }, []);
 
-    // Mở modal cài đặt cho thiết bị tự động
-    const handleOpenSettings = (deviceKey) => {
-        if (devices[deviceKey] && !devices[deviceKey].isManual) {
-            setEditingDeviceKey(deviceKey);
-            setIsModalOpen(true);
-        }
-    };
+    // 2) MQTT + fetch last sensor values
+    useEffect(() => {
+        const client = mqtt.connect('wss://io.adafruit.com:443', {
+            username: USERNAME,
+            password: AIO_KEY,
+            connectTimeout: 4000
+        });
+        clientRef.current = client;
 
-    // Đóng modal
-    const handleCloseModal = () => {
-        setIsModalOpen(false);
-        setEditingDeviceKey(null);
-    };
-
-    // Lưu cài đặt từ modal
-    const handleSaveSettings = async (deviceType, newSettings) => {
-        if (!editingDeviceKey) return;
-
-        const originalSettings = devices[editingDeviceKey]?.settings;
-        // Cập nhật state trước
-        setDevices(prev => ({
-            ...prev,
-            [editingDeviceKey]: { ...prev[editingDeviceKey], settings: newSettings }
-        }));
-        setIsModalOpen(false);
-
-        try {
-            console.log(`API CALL: Saving settings for ${editingDeviceKey}:`, newSettings);
-            // await api.updateDeviceSettings(editingDeviceKey, newSettings); // Gọi API thật
-            setEditingDeviceKey(null); // Xóa key đang sửa sau khi thành công
-        } catch (error) {
-            console.error(`Failed to save settings for ${editingDeviceKey}:`, error);
-            // Rollback state nếu API lỗi
-            setDevices(prev => ({
-                ...prev,
-                [editingDeviceKey]: { ...prev[editingDeviceKey], settings: originalSettings }
-            }));
-            setIsModalOpen(true);
-        }
-    };
-
-    // Bật/tắt lịch trình
-    const handleScheduleToggle = async (scheduleId) => {
-        const scheduleIndex = schedules.findIndex(sch => sch.id === scheduleId);
-        if (scheduleIndex === -1) return;
-
-        const originalSchedule = schedules[scheduleIndex];
-        const newIsActive = !originalSchedule.isActive;
-
-        // Cập nhật state trước
-        setSchedules(prev => prev.map(sch =>
-            sch.id === scheduleId ? { ...sch, isActive: newIsActive } : sch
-        ));
-
-        try {
-            console.log(`API CALL: Toggling schedule ${scheduleId} to ${newIsActive}`);
-            // await api.updateScheduleStatus(scheduleId, { isActive: newIsActive }); // Gọi API thật
-        } catch (error) {
-            console.error(`Failed to toggle schedule ${scheduleId}:`, error);
-            // Rollback state nếu API lỗi
-            setSchedules(prev => prev.map(sch =>
-                sch.id === scheduleId ? { ...sch, isActive: !newIsActive } : sch
-            ));
-        }
-    };
-
-    // Thêm lịch trình (Placeholder)
-    const handleAddSchedule = () => {
-        console.log("API CALL: Request to add a new schedule");
-    };
-
-    // Tắt tất cả thiết bị thủ công
-    const handleTurnOffAll = async () => {
-        const manualDeviceKeys = Object.keys(devices).filter(key => devices[key]?.isManual && devices[key]?.isOn);
-        if (manualDeviceKeys.length === 0) return; // Không có thiết bị nào đang bật
-
-        const originalDevicesState = { ...devices }; // Lưu trạng thái gốc để rollback
-
-        // Cập nhật state trước
-        setDevices(prev => {
-            const nextState = { ...prev };
-            manualDeviceKeys.forEach(key => {
-                nextState[key] = { ...nextState[key], isOn: false };
-            });
-            return nextState;
+        // REST: lấy giá trị cuối cùng
+        Object.entries(SENSOR_FEEDS).forEach(([key, feed]) => {
+            fetch(`https://io.adafruit.com/api/v2/${USERNAME}/feeds/${feed}/data/last`, {
+                headers: { 'X-AIO-Key': AIO_KEY }
+            })
+                .then(res => res.json())
+                .then(json => {
+                    if (json.value != null) {
+                        setDevices(d => ({
+                            ...d,
+                            [key]: {
+                                ...d[key],
+                                statusText: `${json.value}${d[key].type === 'light' ? ' Lux' : ' %'}`
+                            }
+                        }));
+                    }
+                })
+                .catch(() => { });
         });
 
-        try {
-            console.log('API CALL: Turning off all manual devices:', manualDeviceKeys);
-            // await api.turnOffMultipleDevices(manualDeviceKeys); // Gọi API thật
-        } catch (error) {
-            console.error('Failed to turn off all devices:', error);
-            // Rollback state nếu API lỗi
-            setDevices(originalDevicesState);
-            // Hiện thông báo lỗi
-        }
-    }
+        // Subscribe MQTT
+        client.on('connect', () => {
+            Object.values({ ...SENSOR_FEEDS, ...CONTROL_FEEDS }).forEach(feed => {
+                const topic = `${USERNAME}/feeds/${feed}`;
+                client.subscribe(topic, err => {
+                    if (!err) console.log(`Subscribed to ${topic}`);
+                });
+            });
+        });
 
-    // Lấy thông tin device đang chỉnh sửa cho Modal
-    const currentEditingDevice = editingDeviceKey ? devices[editingDeviceKey] : null;
+        client.on('message', (topic, message) => {
+            const feed = topic.split('/').pop();
+            const key = Object.keys(SENSOR_FEEDS).find(k => SENSOR_FEEDS[k] === feed);
+            if (key) {
+                setDevices(d => ({
+                    ...d,
+                    [key]: {
+                        ...d[key],
+                        statusText: `${message.toString()}${d[key].type === 'light' ? ' Lux' : ' %'}`
+                    }
+                }));
+            }
+        });
+
+        return () => client.end();
+    }, []);
+
+    // Toggle single device
+    const handleToggle = key => {
+        const newState = !devices[key].isOn;
+        setDevices(d => ({
+            ...d,
+            [key]: { ...d[key], isOn: newState }
+        }));
+        clientRef.current.publish(
+            `${USERNAME}/feeds/${CONTROL_FEEDS[key]}`,
+            newState ? '1' : '0',
+            { qos: 0 }
+        );
+    };
+
+
+    // Schedule handlers
+    const handleAddSchedule = () => {
+        setEditingSchedule(null);
+        setNewSchedule({ feed_key: CONTROL_FEEDS.light1, start_at: '', end_at: '' });
+        setShowScheduleModal(true);
+    };
+    const handleEditSchedule = sch => {
+        setEditingSchedule(sch);
+        setNewSchedule({
+            feed_key: sch.feed_key,
+            start_at: dayjs(sch.start_at).format('YYYY-MM-DDTHH:mm'),
+            end_at: dayjs(sch.end_at).format('YYYY-MM-DDTHH:mm')
+        });
+        setShowScheduleModal(true);
+    };
+    const handleDeleteSchedule = id => {
+        if (!window.confirm('Bạn có chắc muốn xóa?')) return;
+        fetch(`http://127.0.0.1:8000/api/device-schedules/${id}`, { method: 'DELETE' })
+            .then(() => setSchedules(s => s.filter(x => x.id !== id)))
+            .catch(console.error);
+    };
+    const submitSchedule = async () => {
+        const url = editingSchedule
+            ? `http://127.0.0.1:8000/api/device-schedules/${editingSchedule.id}`
+            : 'http://127.0.0.1:8000/api/device-schedules';
+        const method = editingSchedule ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newSchedule)
+        });
+        const json = await res.json();
+        if (json.success) {
+            setSchedules(s =>
+                editingSchedule ? s.map(x => (x.id === json.data.id ? json.data : x)) : [...s, json.data]
+            );
+            setShowScheduleModal(false);
+        }
+    };
+
+    // Turn all
+    const allOn = Object.values(devices).every(d => d.isOn);
+    const handleTurnAll = () => {
+        Object.keys(devices).forEach(key => {
+            if (devices[key].isOn === allOn) handleToggle(key);
+        });
+    };
 
     return (
         <Fragment>
-            <header className="flex items-center justify-between p-5 border-b bg-white">
-                 <div className="flex items-center">
-                    <h1 className="text-2xl font-bold text-gray-800">SMART TOMATO FARM</h1>
-                 </div>
-                 <div className="flex items-center space-x-4">
-                    <button className="text-gray-500 hover:text-gray-700" title="Thông báo">
-                        <FiBell size={20} />
+            {/* HEADER */}
+            <header className="flex items-center justify-between p-5 border-b bg-white sticky top-0 z-20">
+                <h1 className="text-2xl font-bold text-gray-800">SMART TOMATO FARM</h1>
+                <div className="flex items-center space-x-4">
+                    {/* Help button lên đầu */}
+                    <button
+                        onClick={() => setShowHelp(true)}
+                        className="text-gray-600 hover:text-gray-900"
+                        title="Xem hướng dẫn"
+                    >
+                        <FiHelpCircle size={20} />
                     </button>
-                     <button className="text-gray-500 hover:text-gray-700" title="Cài đặt trang">
-                        <PageSettingsIcon size={20} />
-                    </button>
-                 </div>
+                    <FiBell size={20} />
+                    <PageSettingsIcon size={20} />
+                </div>
             </header>
 
-            {/* Main Content Grid */}
+            {/* MAIN */}
             <div className="p-6 flex-grow">
-                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                {/* Thủ công + Help */}
+                <section className="mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-semibold text-gray-700">Turn devices</h2>
 
-                    {/* Cột 1: Thủ công */}
-                    <section className="max-w-xs mx-auto w-full">
-                        <h2 className="text-xl font-semibold mb-4 text-gray-700">Thủ công</h2>
-                        <div className="space-y-4">
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {Object.entries(devices).map(([key, d]) => (
                             <DeviceCard
-                                id={devices.light1?.id}
-                                deviceName={devices.light1?.name}
-                                statusText={devices.light1?.statusText}
-                                isManual={true}
-                                isDeviceOn={devices.light1?.isOn}
-                                onToggleChange={() => handleManualToggle('light1')}
-                                imageUrl={pump}
+                                key={key}
+                                id={key}
+                                deviceName={d.name}
+                                statusText={d.statusText}
+                                isManual
+                                isDeviceOn={d.isOn}
+                                onToggleChange={() => handleToggle(key)}
+                                imageUrl={pumpImg}
+                                imageClassName="w-full h-20 object-contain opacity-70"
                             />
-                            <DeviceCard
-                                id={devices.pump1?.id}
-                                deviceName={devices.pump1?.name}
-                                statusText={devices.pump1?.statusText}
-                                isManual={true}
-                                isDeviceOn={devices.pump1?.isOn}
-                                onToggleChange={() => handleManualToggle('pump1')}
-                                imageUrl={pump}
-                            />
-                        </div>
-                    </section>
+                        ))}
+                    </div>
+                </section>
 
-                    {/* Cột 2: Tự động thông minh */}
-                    <section className="max-w-xs mx-auto w-full">
-                        <h2 className="text-xl font-semibold mb-4 text-gray-700">Tự động thông minh</h2>
-                        <div className="space-y-4">
-                            <DeviceCard
-                                id={devices.light2?.id}
-                                deviceName={devices.light2?.name}
-                                statusText={devices.light2?.statusText}
-                                isManual={false} 
-                                onSettingsClick={() => handleOpenSettings('light2')}
-                                imageUrl={pump}
-                            />
-                            <DeviceCard
-                                id={devices.pump2?.id}
-                                deviceName={devices.pump2?.name}
-                                statusText={devices.pump2?.statusText}
-                                isManual={false}
-                                onSettingsClick={() => handleOpenSettings('pump2')}
-                                imageUrl={pump}
-                            />
-                        </div>
-                    </section>
-
-                    {/* Cột 3: Hẹn giờ */}
-                    <section>
-                         <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-semibold text-gray-700">Hẹn giờ ({schedules.filter(s => s.isActive).length})</h2>
+                {/* Hẹn giờ + Help */}
+                <section className="mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-semibold text-gray-700">
+                            Schedule ({schedules.filter(s => s.enabled).length})
+                        </h2>
+                        <div className="flex space-x-2">
+                            <button
+                                onClick={() => setEditingSchedulesMode(m => !m)}
+                                className="text-gray-600 hover:text-gray-800"
+                            >
+                                <FiEdit2 size={18} />
+                            </button>
                             <button
                                 onClick={handleAddSchedule}
-                                className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100"
-                                aria-label="Thêm lịch trình"
-                                title="Thêm lịch trình"
+                                className="text-blue-600 hover:text-blue-800"
                             >
-                                 <FiPlus size={24} />
+                                <FiPlus size={20} />
                             </button>
-                         </div>
-                         <div className="bg-gray-100 p-4 rounded-lg shadow-inner space-y-3 border border-gray-200">
-                               {schedules.map(schedule => (
-                                   <ScheduleEntry
-                                       key={schedule.id}
-                                       id={schedule.id}
-                                       deviceName={schedule.deviceName}
-                                       icon={schedule.icon}
-                                       startTime={schedule.startTime}
-                                       endTime={schedule.endTime}
-                                       isActive={schedule.isActive}
-                                       onToggle={() => handleScheduleToggle(schedule.id)}
-                                   />
-                               ))}
-                               {schedules.length === 0 && (
-                                   <p className='text-center text-gray-500 text-sm py-4'>Chưa có lịch trình nào.</p>
-                               )}
-                         </div>
-                    </section>
-                 </div>
 
-                 {/* Nút Turn Off All Devices */}
-                 <div className="mt-auto pt-6 text-center">
-                      <button
-                         onClick={handleTurnOffAll}
-                         className="w-full max-w-xs bg-amber-700 hover:bg-amber-800 text-white font-semibold py-3 px-6 rounded-lg shadow transition duration-200 flex items-center justify-center mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                         disabled={!Object.values(devices).some(d => d.isManual && d.isOn)} // Disable nếu không có thiết bị manual nào đang bật
-                      >
-                         <FiPower size={20} className="mr-2"/>
-                         Turn Off All Devices
-                      </button>
-                 </div>
+                        </div>
+                    </div>
+                    <div className="bg-gray-100 p-4 rounded-lg shadow-inner space-y-3 border border-gray-200">
+                        {schedules.length > 0 ? schedules.map(sch => (
+                            <ScheduleEntry
+                                key={sch.id}
+                                id={sch.id}
+                                deviceName={sch.feed_key === 'led' ? 'Led RGB' : 'Pumper'}
+                                icon={sch.feed_key === 'led' ? FiZap : FiDroplet}
+                                startTime={dayjs(sch.start_at).format('HH:mm')}
+                                endTime={dayjs(sch.end_at).format('HH:mm')}
+                                isActive={sch.enabled}
+                                onToggle={!editingSchedulesMode ? () => handleToggle(sch.id) : undefined}
+                                onDelete={editingSchedulesMode ? () => handleDeleteSchedule(sch.id) : undefined}
+                                onEdit={editingSchedulesMode ? () => handleEditSchedule(sch) : undefined}
+                            />
+                        )) : (
+                            <p className="text-center text-gray-500 py-4">There have no schedule yet.</p>
+                        )}
+                    </div>
+                </section>
+
+                {/* Turn On/Off All */}
+                <div className="mt-auto pt-6 text-center">
+                    <button
+                        onClick={handleTurnAll}
+                        className={`w-full max-w-xs font-semibold py-3 px-6 rounded-lg shadow flex items-center justify-center mx-auto ${allOn ? 'bg-amber-700 hover:bg-amber-800 text-white' : 'bg-green-600 hover:bg-green-700 text-white'
+                            }`}
+                    >
+                        <FiPower size={20} className="mr-2" /> {allOn ? 'Turn off all devices' : 'Turn on all devices'}
+                    </button>
+                </div>
             </div>
 
-            {/* Modal Cài đặt (truyền thông tin device đang sửa) */}
+            {/* Settings Modal */}
             <SettingsModal
-                 isOpen={isModalOpen}
-                 onClose={handleCloseModal}
-
-                 deviceType={currentEditingDevice?.type}
-                 deviceName={currentEditingDevice?.name}
-                 currentSettings={currentEditingDevice?.settings || {}}
-                 onSave={handleSaveSettings}
+                isOpen={isSettingsOpen}
+                onClose={() => setIsSettingsOpen(false)}
+                deviceType={editingDeviceKey && devices[editingDeviceKey].type}
+                deviceName={editingDeviceKey && devices[editingDeviceKey].name}
+                currentSettings={editingDeviceKey && devices[editingDeviceKey].settings}
             />
-        </Fragment>
-    );
-};
 
-export default Devices;
+            {/* Add/Edit Schedule Modal */}
+            <Transition appear show={showScheduleModal} as={Fragment}>
+                <Dialog as="div" className="relative z-10" onClose={() => setShowScheduleModal(false)}>
+                    <Transition.Child
+                        as={Fragment}
+                        enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100"
+                        leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0"
+                    >
+                        <div className="fixed inset-0 bg-black bg-opacity-25" />
+                    </Transition.Child>
+                    <div className="fixed inset-0 overflow-y-auto">
+                        <div className="flex min-h-full items-center justify-center p-4 text-center">
+                            <Transition.Child
+                                as={Fragment}
+                                enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
+                                leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
+                            >
+                                <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 shadow-xl transition-all">
+                                    <Dialog.Title as="h3" className="text-lg font-medium text-gray-900">
+                                        {editingSchedule ? 'Sửa lịch hẹn' : 'Thêm lịch hẹn'}
+                                    </Dialog.Title>
+                                    <div className="mt-4 space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">Thiết bị</label>
+                                            <select
+                                                value={newSchedule.feed_key}
+                                                onChange={e => setNewSchedule(ns => ({ ...ns, feed_key: e.target.value }))}
+                                                className="mt-1 block w-full rounded-md border-gray-300"
+                                            >
+                                                <option value="led">Led RGB</option>
+                                                <option value="pumper">Pumper</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">Bắt đầu</label>
+                                            <input
+                                                type="datetime-local"
+                                                value={newSchedule.start_at}
+                                                onChange={e => setNewSchedule(ns => ({ ...ns, start_at: e.target.value }))}
+                                                className="mt-1 block w-full rounded-md border-gray-300"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">Kết thúc</label>
+                                            <input
+                                                type="datetime-local"
+                                                value={newSchedule.end_at}
+                                                onChange={e => setNewSchedule(ns => ({ ...ns, end_at: e.target.value }))}
+                                                className="mt-1 block w-full rounded-md border-gray-300"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="mt-6 flex justify-end space-x-2">
+                                        <button
+                                            onClick={() => setShowScheduleModal(false)}
+                                            className="rounded-md border bg-gray-200 px-4 py-2 text-gray-700 hover:bg-gray-300"
+                                        >
+                                            Huỷ
+                                        </button>
+                                        <button
+                                            onClick={submitSchedule}
+                                            className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+                                        >
+                                            Lưu
+                                        </button>
+                                    </div>
+                                </Dialog.Panel>
+                            </Transition.Child>
+                        </div>
+                    </div>
+                </Dialog>
+            </Transition>
+
+            {/* Help Modal */}
+            {/* Help Modal */}
+            <HelperModal
+                isOpen={showHelp}
+                onClose={() => setShowHelp(false)}
+                title="Hướng dẫn sử dụng"
+            >
+                <p><strong>Turn devices:</strong> Bấm công tắc để bật/tắt ngay.</p>
+                <p><strong>Schedule:</strong> Dùng icon <FiPlus className="inline" /> để thêm, <FiEdit2 className="inline" /> để sửa, <FiTrash2 className="inline" /> để xóa.</p>
+                <p>Icon <FiHelpCircle className="inline" /> để xem hướng dẫn.</p>
+            </HelperModal>
+        </Fragment >
+    );
+}
