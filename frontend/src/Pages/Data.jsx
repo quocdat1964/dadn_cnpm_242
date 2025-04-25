@@ -157,6 +157,15 @@ export default function Data() {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
+    if (loading) {
+        return (
+            <div className="flex w-full h-full items-center justify-center bg-gray-100">
+                <FiLoader className="animate-spin text-blue-500 mr-3" size={40} />
+                <span>Đang tải...</span>
+            </div>
+        );
+    }
+
     return (
         <Fragment>
             <div className="h-screen flex flex-col">

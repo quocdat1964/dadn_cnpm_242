@@ -3,6 +3,7 @@ import SettingsModal from '../Components/SettingModal';
 import DeviceCard from '../Components/DeviceCard';
 import ScheduleEntry from '../Components/ScheduleEntry';
 import { Dialog, Transition } from '@headlessui/react';
+import { FiLoader } from 'react-icons/fi';
 import pumpImg from '../image/water_pump.png';
 import HelperModal from '../Components/HelperModal'; // thêm import
 
@@ -44,6 +45,7 @@ export default function Devices() {
         end_at: ''
     });
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [editingDeviceKey, setEditingDeviceKey] = useState(null);
     const [showHelp, setShowHelp] = useState(false);
 
@@ -54,7 +56,8 @@ export default function Devices() {
         fetch('http://127.0.0.1:8000/api/device-schedules')
             .then(res => res.json())
             .then(json => { if (json.success) setSchedules(json.data); })
-            .catch(e => console.error('Schedules fetch error', e));
+            .catch(e => console.error('Schedules fetch error', e))
+            .finally(() => setLoading(false));
     }, []);
 
     // 2) MQTT + fetch last sensor values
@@ -83,7 +86,9 @@ export default function Devices() {
                         }));
                     }
                 })
-                .catch(() => { });
+                .catch(() => { })
+                .finally(() => setLoading(false));
+                
         });
 
         // Subscribe MQTT
@@ -150,6 +155,7 @@ export default function Devices() {
             .catch(console.error);
     };
     const submitSchedule = async () => {
+        setLoading(true);
         const url = editingSchedule
             ? `http://127.0.0.1:8000/api/device-schedules/${editingSchedule.id}`
             : 'http://127.0.0.1:8000/api/device-schedules';
@@ -165,6 +171,7 @@ export default function Devices() {
                 editingSchedule ? s.map(x => (x.id === json.data.id ? json.data : x)) : [...s, json.data]
             );
             setShowScheduleModal(false);
+            setLoading(false);
         }
     };
 
@@ -175,6 +182,15 @@ export default function Devices() {
             if (devices[key].isOn === allOn) handleToggle(key);
         });
     };
+
+    if (loading) {
+        return (
+            <div className="flex w-full h-full items-center justify-center bg-gray-100">
+                <FiLoader className="animate-spin text-blue-500 mr-3" size={40} />
+                <span>Đang tải...</span>
+            </div>
+        );
+    }
 
     return (
         <Fragment>

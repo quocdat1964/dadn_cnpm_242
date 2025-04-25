@@ -14,6 +14,7 @@ import {
   FiCloudDrizzle,
   FiSun,
   FiEdit2,
+  FiLoader,
   FiHelpCircle      // thêm icon Help
 } from 'react-icons/fi';
 
@@ -161,7 +162,14 @@ const HomePage = () => {
   const today = new Date().toLocaleDateString('vi-VN', {
     day: 'numeric', month: 'long', year: 'numeric'
   });
-  if (loading) return <div className="flex items-center justify-center h-screen"><p>Đang tải...</p></div>;
+  if (loading) {
+    return (
+      <div className="flex w-full h-full items-center justify-center bg-gray-100">
+        <FiLoader className="animate-spin text-blue-500 mr-3" size={40} />
+        <span>Đang tải...</span>
+      </div>
+    );
+  }
   if (error) return <p className="text-red-500 text-center mt-10">{error}</p>;
 
   return (
