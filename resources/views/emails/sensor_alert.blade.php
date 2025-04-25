@@ -1,18 +1,21 @@
+<!-- resources/views/emails/sensor_alert.blade.php -->
+
 <!DOCTYPE html>
 <html>
 
 <head>
     <meta charset="utf-8">
-    <title>Cảnh báo cảm biến</title>
+    <title>Cảnh báo {{ $sensorName }}</title>
 </head>
 
 <body>
-    <h2>Cảnh báo: {{ $feedKey }}</h2>
     <p>Giá trị đo được: <strong>{{ $value }}</strong></p>
-    <p>Ngưỡng cho phép: {{ $min }} — {{ $max }}</p>
-    <p>Thời điểm: {{ $recordedAt }}</p>
+    <p>Ngưỡng tối thiểu: <strong>{{ $min }}</strong></p>
+    <p>Ngưỡng tối đa: <strong>{{ $max }}</strong></p>
+    <p>Thời gian đo: <strong>{{ $time }}</strong></p>
+
     <hr>
-    <p>Vui lòng kiểm tra hệ thống của bạn.</p>
+    <p>Vui lòng kiểm tra và điều chỉnh hệ thống nếu cần.</p>
 </body>
 
 </html>

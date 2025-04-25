@@ -1,5 +1,7 @@
 <?php
 // filepath: routes/api.php
+
+use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SensorController;
 use App\Http\Controllers\AdafruitController;
 use App\Http\Controllers\DeviceController;
@@ -8,82 +10,86 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\DeviceScheduleController;
 use App\Http\Controllers\TelegramController;
 
-Route::get('/sensors/raw-history', [SensorController::class, 'rawHistory']);
-Route::get('/sensors/history', [SensorController::class, 'history']);
-Route::get('/device-schedules', [DeviceScheduleController::class, 'index']);
-Route::post('/device-schedules', [DeviceScheduleController::class, 'store']);
-Route::patch('/device-schedules/{schedule}/toggle', [DeviceScheduleController::class, 'toggle']);
-Route::post('/device-schedules/apply', [DeviceScheduleController::class, 'apply']);
-Route::delete('/device-schedules/{schedule}', [DeviceScheduleController::class, 'destroy']);
-Route::put('/device-schedules/{schedule}', [DeviceScheduleController::class, 'update']);
-Route::post('/devices/turn-on-all', [DeviceController::class, 'turnOnAll']);
-Route::post('/devices/turn-off-all', [DeviceController::class, 'turnOffAll']);
-Route::post('/notifications/sync', [NotificationController::class, 'evaluateAndNotify']);
-Route::get('/notifications/all', [NotificationController::class, 'getAllNotifications']);
-Route::get('/devices/status', [DeviceController::class, 'getStatus']);
-Route::get('/sensors/adafruit/latest', [AdafruitController::class, 'getFeedData']);
-Route::get('/sensors/adafruit/current', [SensorController::class, 'getCurrentReadings']);
-Route::post('/environment/evaluate', [EnvironmentController::class, 'fetchAndEvaluate']);
-Route::post('/sensors/data', [SensorController::class, 'storeData']);
-Route::post('/telegram/webhook', [TelegramController::class, 'handle']);
-Route::get('/sensors/thresholds', [SensorController::class, 'getThreshold']);
-Route::post('/sensors/thresholds', [SensorController::class, 'setThreshold']);
-// Route::post('/devices/control', [DeviceController::class, 'updateStatus']);
-// Route::post('/devices/sync-control', [DeviceController::class, 'updateStatus']);
-Route::post('/devices/control', [DeviceController::class, 'toggle']);
+/*
+|--------------------------------------------------------------------------
+| Sensors
+|--------------------------------------------------------------------------
+*/
+Route::prefix('sensors')->group(function () {
+    // Lịch sử cảm biến
+    Route::get('raw-history', [SensorController::class, 'rawHistory']);
+    Route::get('history', [SensorController::class, 'history']);
+
+    // Adafruit IO
+    Route::prefix('adafruit')->group(function () {
+        Route::get('latest', [AdafruitController::class, 'getFeedData']);
+        Route::get('current', [SensorController::class, 'getCurrentReadings']);
+    });
+
+    // Lưu dữ liệu sensor từ client
+    Route::post('data', [SensorController::class, 'storeData']);
+
+    // Ngưỡng cảnh báo
+    Route::get('thresholds', [SensorController::class, 'getThreshold']);
+    Route::post('thresholds', [SensorController::class, 'setThreshold']);
+});
 
 
-// <?php
-// // filepath: routes/api.php
+/*
+|--------------------------------------------------------------------------
+| Devices
+|--------------------------------------------------------------------------
+*/
+Route::prefix('devices')->group(function () {
+    Route::get('status', [DeviceController::class, 'getStatus']);      // Trạng thái hiện tại
+    Route::post('control', [DeviceController::class, 'toggle']);         // Bật/tắt một device
+    Route::post('turn-on-all', [DeviceController::class, 'turnOnAll']);      // Bật tất cả
+    Route::post('turn-off-all', [DeviceController::class, 'turnOffAll']);     // Tắt tất cả
+});
 
-// use Illuminate\Support\Facades\Route;
-// use App\Http\Controllers\{
-//     SensorController,
-//     AdafruitController,
-//     DeviceController,
-//     EnvironmentController,
-//     NotificationController,
-//     DeviceScheduleController,
-//     TelegramController
-// };
 
-// // ───── Sensors & Adafruit ───────────────────────────────────────────────────────
-// Route::prefix('sensors')->group(function () {
-//     Route::controller(SensorController::class)->group(function () {
-//         Route::get('raw-history',    'rawHistory');
-//         Route::get('history',        'history');
-//         Route::get('adafruit/current','getCurrentReadings');
-//         Route::post('data',          'storeData');
-//         Route::get('thresholds',     'getThreshold');
-//         Route::post('thresholds',    'setThreshold');
-//     });
+/*
+|--------------------------------------------------------------------------
+| Device Schedules
+|--------------------------------------------------------------------------
+*/
+Route::prefix('device-schedules')->group(function () {
+    // CRUD cơ bản
+    Route::apiResource('/', DeviceScheduleController::class)
+        ->parameters(['' => 'schedule'])
+        ->except(['create', 'edit', 'show']);
 
-//     Route::get('adafruit/latest', [AdafruitController::class, 'getFeedData']);
-// });
+    // Toggle on/off nhanh
+    Route::patch('{schedule}/toggle', [DeviceScheduleController::class, 'toggle'])
+        ->whereNumber('schedule');
 
-// // ───── Device Schedules ─────────────────────────────────────────────────────────
-// Route::apiResource('device-schedules', DeviceScheduleController::class)
-//      ->except(['show']);
+    // Áp dụng tất cả lịch vào Adafruit
+    Route::post('apply', [DeviceScheduleController::class, 'apply']);
+});
 
-// Route::patch('device-schedules/{schedule}/toggle', [DeviceScheduleController::class, 'toggle']);
-// Route::post ('device-schedules/apply',            [DeviceScheduleController::class, 'apply']);
 
-// // ───── Devices ─────────────────────────────────────────────────────────────────
-// Route::prefix('devices')->controller(DeviceController::class)->group(function () {
-//     Route::post('turn-on-all',  'turnOnAll');
-//     Route::post('turn-off-all', 'turnOffAll');
-//     Route::post('control',      'toggle');
-//     Route::get ('status',       'getStatus');
-// });
+/*
+|--------------------------------------------------------------------------
+| Notifications
+|--------------------------------------------------------------------------
+*/
+Route::prefix('notifications')->group(function () {
+    Route::post('sync', [NotificationController::class, 'evaluateAndNotify']);
+    Route::get('all', [NotificationController::class, 'getAllNotifications']);
+});
 
-// // ───── Notifications ─────────────────────────────────────────────────────────────
-// Route::prefix('notifications')->controller(NotificationController::class)->group(function () {
-//     Route::post('sync', 'evaluateAndNotify');
-//     Route::get ('all',  'getAllNotifications');
-// });
 
-// // ───── Environment ──────────────────────────────────────────────────────────────
-// Route::post('environment/evaluate', [EnvironmentController::class, 'fetchAndEvaluate']);
+/*
+|--------------------------------------------------------------------------
+| Environment
+|--------------------------------------------------------------------------
+*/
+Route::post('environment/evaluate', [EnvironmentController::class, 'fetchAndEvaluate']);
 
-// // ───── Telegram Webhook ─────────────────────────────────────────────────────────
-// Route::post('telegram/webhook', [TelegramController::class, 'handle']);
+
+/*
+|--------------------------------------------------------------------------
+| Telegram Webhook
+|--------------------------------------------------------------------------
+*/
+Route::post('telegram/webhook', [TelegramController::class, 'handle']);

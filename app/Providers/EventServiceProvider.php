@@ -13,10 +13,9 @@ class EventServiceProvider extends ServiceProvider
      * @var array
      */
     protected $listen = [
-        // Ví dụ:
-        // 'App\Events\ExampleEvent' => [
-        //     'App\Listeners\ExampleListener',
-        // ],
+        \App\Events\NewSensorData::class => [
+            \App\Listeners\SendSensorNotification::class,
+        ],
     ];
 
     /**

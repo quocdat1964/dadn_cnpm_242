@@ -1,46 +1,27 @@
 <?php
+// app/Events/NewSensorData.php
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\Channel;
-use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
-use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
-use App\Models\Record;
+use Carbon\Carbon;
 
-class NewSensorData implements ShouldBroadcast
+class NewSensorData
 {
-    use Dispatchable, InteractsWithSockets, SerializesModels;
+    use SerializesModels;
 
-    public $record;
+    public string $feedId;
+    public float $value;
+    public Carbon $recordedAt;
+    public ?string $email;
+    public ?string $telegramChatId;
 
-    /**
-     * Create a new event instance.
-     *
-     * @param \App\Models\Record $record
-     */
-    public function __construct(Record $record)
+    public function __construct(string $feedId, float $value, Carbon $recordedAt, ?string $email, ?int $telegramChatId)
     {
-        $this->record = $record;
-    }
-
-    /**
-     * Get the channels the event should broadcast on.
-     *
-     * @return \Illuminate\Broadcasting\Channel|\Illuminate\Broadcasting\Channel[]
-     */
-    public function broadcastOn()
-    {
-        // Ví dụ: phát trên kênh "sensor-data"
-        return new Channel('sensor-data');
-    }
-
-    /**
-     * Tùy chọn đặt tên cho event (nếu cần)
-     */
-    public function broadcastAs()
-    {
-        return 'NewSensorData';
+        $this->feedId = $feedId;
+        $this->value = $value;
+        $this->recordedAt = $recordedAt;
+        $this->email = $email;
+        $this->telegramChatId = $telegramChatId;
     }
 }

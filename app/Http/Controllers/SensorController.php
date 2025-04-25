@@ -6,43 +6,26 @@ use Illuminate\Http\Request;
 use App\Models\Sensor;
 use App\Models\Record;
 use Carbon\Carbon;
-use App\Http\Controllers\NotificationController; // ✂️ import
+use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;  // ✂️ thêm Cache facades
 use GuzzleHttp\Client;
-
-use App\Events\NewSensorData; // Import event
+use App\Repositories\RecordRepository;
+use App\Events\NewSensorData;
+use App\Services\AdafruitService;
 
 class SensorController extends Controller
 {
-    // public function storeData(Request $request)
-    // {
-    //     $feedKey = $request->input('feed_id');
-    //     $value = $request->input('value');
+    protected RecordRepository $records;
+    protected AdafruitService $adafruit;
 
-    //     // Tìm sensor theo feed_key
-    //     $sensor = Sensor::where('feed_key', $feedKey)->first();
-
-    //     if (!$sensor) {
-    //         // Nếu không tìm thấy sensor, trả về lỗi
-    //         return response()->json([
-    //             'success' => false,
-    //             'error' => "Sensor with feed_key '$feedKey' not found",
-    //         ], 404);
-    //     }
-
-    //     // Tạo record mới với sensor_id, value và thời gian hiện tại
-    //     $record = Record::create([
-    //         'sensor_id' => $sensor->id,
-    //         'value' => floatval($value),
-    //         'recorded_at' => Carbon::now()
-    //     ]);
-
-    //     return response()->json([
-    //         'success' => true,
-    //         'message' => 'Data stored successfully',
-    //         'data' => $record
-    //     ], 200);
-    // }
+    public function __construct(
+        RecordRepository $records,
+        AdafruitService $adafruit
+    ) {
+        $this->records = $records;
+        $this->adafruit = $adafruit;
+    }
 
     public function storeData(Request $request)
     {
@@ -53,63 +36,55 @@ class SensorController extends Controller
         ]);
 
         $sensor = Sensor::where('feed_key', $data['feed_id'])->firstOrFail();
-
-        // dùng đúng timestamp gốc, hoặc now() nếu không có
-        // $ts = $data['recorded_at']
-        //     ? Carbon::parse($data['recorded_at'])
-        //     : Carbon::now();
         $ts = isset($data['recorded_at'])
             ? Carbon::parse($data['recorded_at'], 'Asia/Ho_Chi_Minh')
             : Carbon::now('Asia/Ho_Chi_Minh');
 
-        // ghi hoặc cập nhật record duy nhất với đúng $ts
-        Record::updateOrCreate(
-            ['sensor_id' => $sensor->id, 'recorded_at' => $ts],
-            ['value' => $data['value']]
-        );
-        // 4) Gọi API cảnh báo ngay sau khi lưu xong
+        // Lưu hoặc cập nhật record
+        $this->records->upsert($data['feed_id'], $data['value'], $ts);
+
+        // Xoá cache liên quan để khi lấy sẽ trả về dữ liệu mới nhất
+        Cache::forget('sensors.current_readings');
+        Cache::forget("sensors.history.{$data['feed_id']}.day");
+        Cache::forget("sensors.rawHistory.{$data['feed_id']}.{$ts->toDateString()}");
+
+        // Gửi notification ngay sau khi lưu xong
         try {
             $notifyPayload = [
                 'feed_id' => $data['feed_id'],
                 'recorded_at' => $ts->toDateTimeString(),
-                // nếu client truyền email/chat, dùng client, ngược lại fallback env
                 'email' => $request->input('email', env('ALERT_EMAIL')),
                 'telegram_chat_id' => $request->input('telegram_chat_id', env('TELEGRAM_CHAT_ID')),
             ];
-            // tạo một Request mới để gọi
             $fakeRequest = new Request($notifyPayload);
-            // gọi controller
             app(NotificationController::class)->evaluateAndNotify($fakeRequest);
         } catch (\Throwable $e) {
-            // chỉ log, không fail toàn bộ storeData
             Log::error('Error dispatching notification: ' . $e->getMessage());
         }
 
         return response()->json(['success' => true], 200);
     }
 
-
-
     public function getCurrentReadings(Request $request)
     {
-        // Lấy tất cả cảm biến từ bảng sensors
-        $sensors = Sensor::all();
-        $result = [];
-
-        foreach ($sensors as $sensor) {
-            // Lấy bản ghi mới nhất (dựa theo recorded_at) từ bảng records cho từng sensor
-            $record = Record::where('sensor_id', $sensor->id)
-                ->orderBy('recorded_at', 'desc')
-                ->first();
-
-            $result[] = [
-                'sensor_id' => $sensor->id,
-                'sensor_name' => $sensor->name,
-                'feed_key' => $sensor->feed_key,
-                'reading' => $record ? $record->value : null,
-                'recorded_at' => $record ? $record->recorded_at : null,
-            ];
-        }
+        // Cache 60 giây để trả về nhanh
+        $result = Cache::remember('sensors.current_readings', 60, function () {
+            $sensors = Sensor::all();
+            $data = [];
+            foreach ($sensors as $sensor) {
+                $record = Record::where('sensor_id', $sensor->id)
+                    ->orderBy('recorded_at', 'desc')
+                    ->first();
+                $data[] = [
+                    'sensor_id' => $sensor->id,
+                    'sensor_name' => $sensor->name,
+                    'feed_key' => $sensor->feed_key,
+                    'reading' => $this->records->getLatest($sensor->feed_key),
+                    'recorded_at' => $record ? $record->recorded_at : null,
+                ];
+            }
+            return $data;
+        });
 
         return response()->json([
             'success' => true,
@@ -117,148 +92,111 @@ class SensorController extends Controller
         ], 200);
     }
 
-
-
     public function history(Request $request)
     {
         $feedKey = $request->query('feed_key');
         $period = $request->query('period', 'day');
+        $cacheKey = "sensors.history.{$feedKey}.{$period}";
 
-        $sensor = Sensor::where('feed_key', $feedKey)->first();
-        if (!$sensor) {
-            return response()->json([
-                'success' => false,
-                'error' => "Sensor với feed_key '{$feedKey}' không tồn tại."
-            ], 404);
-        }
-
-        $now = Carbon::now();
-        switch ($period) {
-            case 'week':
-                $start = $now->copy()->subDays(6)->startOfDay();
-                $timeExpr = 'DATE(recorded_at) as period';
-                break;
-
-            case 'month':
-                $start = $now->copy()->subDays(29)->startOfDay();
-                $timeExpr = 'DATE(recorded_at) as period';
-                break;
-
-            case 'day':
-            default:
-                $start = $now->copy()->startOfDay();
-                $timeExpr = 'HOUR(recorded_at) as period';
-                break;
-        }
-
-        $rows = DB::table('records')
-            ->selectRaw("$timeExpr, AVG(value) as avg_value")
-            ->where('sensor_id', $sensor->id)
-            ->whereBetween('recorded_at', [$start, $now])
-            ->groupBy('period')
-            ->orderBy('period')
-            ->get();
-
-        $data = $rows->map(function ($r) use ($period) {
-            if ($period === 'day') {
-                $label = str_pad($r->period, 2, '0', STR_PAD_LEFT) . ':00';
-            } else {
-                // Định dạng ngày: Nên dùng 'Y-m-d' thay vì 'YYYY-MM-DD'
-                $label = Carbon::parse($r->period)->format('Y-m-d');
+        $response = Cache::remember($cacheKey, 300, function () use ($feedKey, $period) {
+            $sensor = Sensor::where('feed_key', $feedKey)->first();
+            if (!$sensor) {
+                return ['success' => false, 'error' => "Sensor với feed_key '{$feedKey}' không tồn tại."];
             }
-            return ['x' => $label, 'y' => round($r->avg_value, 1)];
+
+            $now = Carbon::now();
+            switch ($period) {
+                case 'week':
+                    $start = $now->copy()->subDays(6)->startOfDay();
+                    $timeExpr = 'DATE(recorded_at) as period';
+                    break;
+                case 'month':
+                    $start = $now->copy()->subDays(29)->startOfDay();
+                    $timeExpr = 'DATE(recorded_at) as period';
+                    break;
+                case 'day':
+                default:
+                    $start = $now->copy()->startOfDay();
+                    $timeExpr = 'HOUR(recorded_at) as period';
+                    break;
+            }
+
+            $rows = DB::table('records')
+                ->selectRaw("{$timeExpr}, AVG(value) as avg_value")
+                ->where('sensor_id', $sensor->id)
+                ->whereBetween('recorded_at', [$start, $now])
+                ->groupBy('period')
+                ->orderBy('period')
+                ->get();
+
+            $data = $rows->map(function ($r) use ($period) {
+                $label = $period === 'day'
+                    ? str_pad($r->period, 2, '0', STR_PAD_LEFT) . ':00'
+                    : Carbon::parse($r->period)->format('Y-m-d');
+                return ['x' => $label, 'y' => round($r->avg_value, 1)];
+            });
+
+            return ['success' => true, 'feed_key' => $feedKey, 'period' => $period, 'data' => $data];
         });
 
-        return response()->json([
-            'success' => true,
-            'feed_key' => $feedKey,
-            'period' => $period,
-            'data' => $data,
-        ], 200);
+        $statusCode = $response['success'] ? 200 : 404;
+        return response()->json($response, $statusCode);
     }
 
-    /**
-     * GET /api/sensors/raw-history
-     *
-     * Query params:
-     *  - feed_key (string, required): khóa feed Adafruit IO
-     *  - date     (string, optional): ngày muốn lấy, format "YYYY-MM-DD" (mặc định hôm nay)
-     *
-     * Trả về toàn bộ bản ghi trong ngày đó:
-     * [
-     *   { "x": "08:15:23", "y": 24.5 },
-     *   { "x": "08:30:05", "y": 25.1 },
-     *   …
-     * ]
-     */
     public function rawHistory(Request $request)
     {
         $feedKey = $request->query('feed_key');
         $date = $request->query('date', Carbon::now()->toDateString());
+        $cacheKey = "sensors.rawHistory.{$feedKey}.{$date}";
 
-        // 1. Kiểm tra sensor tồn tại
-        $sensor = Sensor::where('feed_key', $feedKey)->first();
-        if (!$sensor) {
-            return response()->json([
-                'success' => false,
-                'error' => "Sensor với feed_key '{$feedKey}' không tồn tại."
-            ], 404);
-        }
+        $response = Cache::remember($cacheKey, 300, function () use ($feedKey, $date) {
+            $sensor = Sensor::where('feed_key', $feedKey)->first();
+            if (!$sensor) {
+                return ['success' => false, 'error' => "Sensor với feed_key '{$feedKey}' không tồn tại."];
+            }
+            $records = Record::where('sensor_id', $sensor->id)
+                ->whereDate('recorded_at', $date)
+                ->orderBy('recorded_at')
+                ->get(['recorded_at', 'value']);
 
-        // 2. Lấy tất cả record trong ngày $date
-        $records = Record::where('sensor_id', $sensor->id)
-            ->whereDate('recorded_at', $date)
-            ->orderBy('recorded_at')
-            ->get(['recorded_at', 'value']);
+            $data = $records->map(function ($r) {
+                return [
+                    'x' => Carbon::parse($r->recorded_at, 'Asia/Ho_Chi_Minh')->format('H:i:s'),
+                    'y' => $r->value,
+                ];
+            });
 
-        // 3. Map thành { x: "HH:mm:ss", y: value }
-        $data = $records->map(function ($r) {
-            return [
-                // ép chuỗi thành Carbon rồi format
-                'x' => Carbon::parse($r->recorded_at, 'Asia/Ho_Chi_Minh')
-                    ->format('H:i:s'),
-                'y' => $r->value,
-            ];
+            return ['success' => true, 'feed_key' => $feedKey, 'date' => $date, 'data' => $data];
         });
 
-        return response()->json([
-            'success' => true,
-            'feed_key' => $feedKey,
-            'date' => $date,
-            'data' => $data,
-        ], 200);
+        $statusCode = $response['success'] ? 200 : 404;
+        return response()->json($response, $statusCode);
     }
 
-
-
-    /**
-     * GET  /api/sensors/thresholds?feed_id=temperature
-     */
     public function getThreshold(Request $req)
     {
         $feed = $req->query('feed_id');
-        $sensor = Sensor::where('feed_key', $feed)->first();
-        if (!$sensor) {
-            return response()->json(['success' => false, 'error' => "Sensor '{$feed}' không tồn tại"], 404);
-        }
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'feed_id' => $sensor->feed_key,
-                'warning_min' => $sensor->warning_min,
-                'warning_max' => $sensor->warning_max,
-            ]
-        ], 200);
+        $cacheKey = "sensors.threshold.{$feed}";
+
+        $response = Cache::remember($cacheKey, 300, function () use ($feed) {
+            $sensor = Sensor::where('feed_key', $feed)->first();
+            if (!$sensor) {
+                return ['success' => false, 'error' => "Sensor '{$feed}' không tồn tại"];
+            }
+            return [
+                'success' => true,
+                'data' => [
+                    'feed_id' => $sensor->feed_key,
+                    'warning_min' => $sensor->warning_min,
+                    'warning_max' => $sensor->warning_max,
+                ]
+            ];
+        });
+
+        $statusCode = $response['success'] ? 200 : 404;
+        return response()->json($response, $statusCode);
     }
 
-    /**
-     * POST /api/sensors/thresholds
-     * {
-     *   "feed_id": "temperature",
-     *   "warning_min": 18.5,
-     *   "warning_max": 27.0
-     * }
-     */
     public function setThreshold(Request $req)
     {
         $data = $req->validate([
@@ -273,6 +211,9 @@ class SensorController extends Controller
             'warning_max' => $data['warning_max'],
         ]);
 
+        // Xoá cache thresholds
+        Cache::forget("sensors.threshold.{$data['feed_id']}");
+
         return response()->json([
             'success' => true,
             'message' => "Cập nhật ngưỡng thành công cho '{$sensor->feed_key}'.",
@@ -283,6 +224,4 @@ class SensorController extends Controller
             ]
         ], 200);
     }
-
-
 }

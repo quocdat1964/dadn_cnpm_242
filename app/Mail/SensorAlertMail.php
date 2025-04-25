@@ -10,32 +10,44 @@ class SensorAlertMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public $feedKey;
-    public $value;
-    public $min;
-    public $max;
-    public $recordedAt;
+    public string $sensorName;
+    public float $value;
+    public float $warningMin;
+    public float $warningMax;
+    public string $recordedAt;
 
-    public function __construct($feedKey, $value, $min, $max, $recordedAt)
-    {
-        $this->feedKey = $feedKey;
+    /**
+     * @param  string  $sensorName    Tên cảm biến (ví dụ "Temperature")
+     * @param  float   $value         Giá trị đo được
+     * @param  float   $warningMin    Ngưỡng tối thiểu
+     * @param  float   $warningMax    Ngưỡng tối đa
+     * @param  string  $recordedAt    Thời điểm đo (chuỗi)
+     */
+    public function __construct(
+        string $sensorName,
+        float $value,
+        float $warningMin,
+        float $warningMax,
+        string $recordedAt
+    ) {
+        $this->sensorName = $sensorName;
         $this->value = $value;
-        $this->min = $min;
-        $this->max = $max;
+        $this->warningMin = $warningMin;
+        $this->warningMax = $warningMax;
         $this->recordedAt = $recordedAt;
     }
 
     public function build()
     {
         return $this
-            ->subject("⚠️ Cảnh báo {$this->feedKey}")
-            ->view('emails.sensor_alert')     // dùng Blade view bình thường
+            ->subject("⚠️ Cảnh báo: {$this->sensorName} vượt ngưỡng")
+            ->view('emails.sensor_alert')
             ->with([
-                'feedKey' => $this->feedKey,
+                'sensorName' => $this->sensorName,
                 'value' => $this->value,
-                'min' => $this->min,
-                'max' => $this->max,
-                'recordedAt' => $this->recordedAt,
+                'min' => $this->warningMin,
+                'max' => $this->warningMax,
+                'time' => $this->recordedAt,
             ]);
     }
 }

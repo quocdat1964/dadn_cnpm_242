@@ -8,16 +8,32 @@ use App\Models\DeviceSchedule;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use App\Jobs\ToggleDeviceJob;
+use App\Services\AdafruitService;
+use Illuminate\Support\Facades\Log;
+
 
 class DeviceScheduleController extends Controller
 {
+
+    protected AdafruitService $adafruit;
+
+    public function __construct(AdafruitService $adafruit)
+    {
+        $this->adafruit = $adafruit;
+    }
+
+
     // 1. GET /api/device-schedules
     public function index()
     {
-        return response()->json([
-            'success' => true,
-            'data' => DeviceSchedule::orderBy('start_at')->get(),
-        ], 200);
+        // return response()->json([
+        //     'success' => true,
+        //     'data' => DeviceSchedule::orderBy('start_at')->get(),
+        // ], 200);
+
+        $schedules = DeviceSchedule::orderBy('start_at')->get();
+        return response()->json(['success' => true, 'data' => $schedules]);
+
     }
 
     // 2. POST /api/device-schedules
@@ -65,61 +81,48 @@ class DeviceScheduleController extends Controller
     public function apply()
     {
         $now = Carbon::now('Asia/Ho_Chi_Minh');
-        \Log::info(">> APPLY at $now");
+        Log::info(">> APPLY at {$now}");
 
-        $username = env('ADAFRUIT_IO_USERNAME');
-        $aioKey = env('ADAFRUIT_IO_KEY');
-        $internalControlUrl = config('app.url') . '/api/devices/control';
-
-        // Lấy tất cả schedule enabled
         DeviceSchedule::where('enabled', true)
+            ->where('end_at', '>=', $now)
             ->get()
-            ->each(function ($sch) use ($now, $username, $aioKey, $internalControlUrl) {
+            ->groupBy('feed_key')
+            ->each(function ($group, $feedKey) use ($now) {
+                $inWindow = $group->contains(function (DeviceSchedule $sch) use ($now) {
+                    $start = Carbon::parse($sch->start_at, 'Asia/Ho_Chi_Minh');
+                    $end = Carbon::parse($sch->end_at, 'Asia/Ho_Chi_Minh');
+                    return $now->between($start, $end, true);
+                });
+                // $inWindow = $now->between($start, $end, true);
+    
+                Log::info(" feed {$feedKey}, inWindow? " . ($inWindow ? 'YES' : 'NO'));
 
-                // 1. Chuyển start/end về cùng timezone với $now
-                $start = Carbon::parse($sch->start_at)
-                    ->timezone('Asia/Ho_Chi_Minh');
-                $end = Carbon::parse($sch->end_at)
-                    ->timezone('Asia/Ho_Chi_Minh');
 
-                \Log::info("   schedule #{$sch->id}: $start → $end");
-
-                // 2. Kiểm tra xem hiện tại có trong window không
-                $inWindow = $now->between($start, $end, true);
-                \Log::info("    → inWindow? " . ($inWindow ? 'YES' : 'NO'));
-
-                // 3. Lấy trạng thái hiện tại của feed
-                $resp = Http::withHeaders(['X-AIO-Key' => $aioKey])
-                    ->get("https://io.adafruit.com/api/v2/{$username}/feeds/{$sch->feed_key}/data?limit=1");
-                if (!$resp->successful()) {
-                    \Log::warning("    → FAIL fetch feed {$sch->feed_key}: HTTP {$resp->status()}");
+                // Log::info(" schedule #{$sch->id}: {$start} → {$end}, inWindow? " . ($inWindow ? 'YES' : 'NO'));
+    
+                // Lấy giá trị hiện tại
+                try {
+                    $current = $this->adafruit->fetchLastValue($feedKey);
+                } catch (\Throwable $e) {
+                    Log::warning(" fetchLastValue({$feedKey}) failed: " . $e->getMessage());
                     return;
                 }
 
-                // Adafruit trả mảng, element đầu có key 'value'
-                $json = $resp->json();
-                $current = floatval(data_get($json, '0.value', 0));
-                \Log::info("    → current value: $current");
+                Log::info(" current value: {$current}");
 
-                // 4. Nếu trong khoảng mà đang OFF thì ON
+                // Nếu trong window & đang off → on
                 if ($inWindow && $current === 0.0) {
-                    \Log::info("    → TURN ON {$sch->feed_key}");
-                    $r = Http::post($internalControlUrl, [
-                        'feed_key' => $sch->feed_key,
-                        'value' => 1,
-                    ]);
-                    \Log::info("       control resp: {$r->status()} / {$r->body()}");
+                    Log::info(" TURN ON {$feedKey}");
+                    $this->adafruit->publishValue($feedKey, 1);
                 }
-                // 5. Nếu ngoài khoảng mà đang ON thì OFF
+                // Nếu ngoài window & đang on → off
                 elseif (!$inWindow && $current === 1.0) {
-                    \Log::info("    → TURN OFF {$sch->feed_key}");
-                    $r = Http::post($internalControlUrl, [
-                        'feed_key' => $sch->feed_key,
-                        'value' => 0,
-                    ]);
-                    \Log::info("       control resp: {$r->status()} / {$r->body()}");
+                    Log::info(" TURN OFF {$feedKey}");
+                    $this->adafruit->publishValue($feedKey, 0);
                 }
             });
+
+        return response()->json(['success' => true], 200);
     }
 
     public function destroy(DeviceSchedule $schedule)
