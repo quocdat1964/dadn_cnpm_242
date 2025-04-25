@@ -208,7 +208,7 @@ export default function Data() {
                             </Menu>
 
                             {granularity === 'range' && (
-                                <div className="flex gap-4 items-end">
+                                <div className="flex gap-4 items-end -translate-y-2">
                                     <div>
                                         <label className="text-sm text-gray-600 block">From</label>
                                         <input

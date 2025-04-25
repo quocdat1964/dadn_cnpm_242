@@ -171,7 +171,7 @@ const UserInfo = () => {
     return (
         <Fragment>
             {/* Standard Header */}
-            <header className="flex items-center justify-between p-5 border-b bg-white sticky top-0 z-20">
+            <header className="flex items-center justify-between p-5 border-b bg-white static top-0 z-20">
                 <div className="flex items-center">
                     <h1 className="text-xl font-semibold text-gray-800">Thông tin người dùng</h1>
                 </div>

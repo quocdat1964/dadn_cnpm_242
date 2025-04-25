@@ -179,7 +179,7 @@ export default function Devices() {
     return (
         <Fragment>
             {/* HEADER */}
-            <header className="flex items-center justify-between p-5 border-b bg-white sticky top-0 z-20">
+            <header className="flex items-center justify-between p-5 border-b bg-white static top-0 z-20">
                 <h1 className="text-2xl font-bold text-gray-800">SMART TOMATO FARM</h1>
                 <div className="flex items-center space-x-4">
                     {/* Help button lên đầu */}
