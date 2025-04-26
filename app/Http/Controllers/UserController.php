@@ -12,7 +12,24 @@ class UserController extends Controller
     
     public function profile()
     {
-        return response()->json(auth()->user());
+        // return response()->json(auth()->user());
+        $user = Auth::user();
+        $data = $user->toArray();
+    
+        if ($user->avatar) {
+            $avatarPath = $user->avatar;
+            if (!str_starts_with($avatarPath, '/storage/')) {
+                $avatarPath = '/storage/' . ltrim($avatarPath, '/');
+            }
+            $data['avatar'] = asset($avatarPath);
+        } else {
+            $data['avatar'] = null;
+        }
+    
+        return response()->json([
+            'success' => true,
+            'data' => $data
+        ]);
     }
 
     public function updateProfile(Request $request)
@@ -28,10 +45,10 @@ class UserController extends Controller
     ]);
 
     // Xử lý ảnh nếu có
-    if ($request->hasFile('avatar')) {
-        $path = $request->file('avatar')->store('avatars', 'public');
-        $validated['avatar'] = $path;
-    }
+    // if ($request->hasFile('avatar')) {
+    //     $path = $request->file('avatar')->store('avatars', 'public');
+    //     $validated['avatar'] = $path;
+    // }
 
     $user->update($validated);
 
