@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Storage;
 
 class AuthController extends Controller
 {
@@ -19,10 +20,17 @@ class AuthController extends Controller
             'phone'       => 'required|string|max:15',
             'username'    => 'required|string|max:255|unique:users',
             'password'    => 'required|string|min:6|confirmed',
-            'avatar'      => 'nullable|string|max:255', 
+            'avatar'      => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', 
             'ada_username' => 'required|string|max:255',
             'ada_key'     => 'required|string|max:255',
         ]);
+        
+        if ($request->hasFile('avatar')) {
+            $avatar = $request->file('avatar');
+            $avatarPath = $avatar->store('avatars', 'public'); 
+        } else {
+            $avatarPath = null;
+        }
 
         $user = User::create([
             'name'        => $request->name,
@@ -31,7 +39,7 @@ class AuthController extends Controller
             'phone'       => $request->phone,
             'username'    => $request->username,
             'password'    => Hash::make($request->password),
-            'avatar'      => $request->avatar ?? null,
+            'avatar'      => $avatarPath,
             'ada_username' => $request->ada_username,
             'ada_key'     => $request->ada_key,
         ]);
