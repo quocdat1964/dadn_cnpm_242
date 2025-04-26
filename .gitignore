@@ -21,3 +21,6 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+/frontend/
+/frontend1/
+/dadn_cnpm_242-gateway/

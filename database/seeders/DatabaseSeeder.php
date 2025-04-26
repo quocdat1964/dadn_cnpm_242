@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             SensorSeeder::class,
             // Thêm các seeder khác ở đây nếu cần
+            DeviceSeeder::class,
         ]);
     }
 }

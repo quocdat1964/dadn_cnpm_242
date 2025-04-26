@@ -11,8 +11,8 @@ class DeviceSeeder extends Seeder
     {
         DB::table('devices')->insert([
             [
-                'name' => 'Light',
-                'feed_key' => 'light',
+                'name' => 'Led',
+                'feed_key' => 'led',
                 'status' => 'off', // mặc định tắt
                 'created_at' => now(),
                 'updated_at' => now(),

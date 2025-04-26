@@ -8,6 +8,7 @@ use App\Models\DeviceSchedule;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use App\Jobs\ToggleDeviceJob;
+use App\Models\ActivityLog;
 
 class DeviceScheduleController extends Controller
 {
@@ -101,6 +102,13 @@ class DeviceScheduleController extends Controller
                             'action' => 'on',
                             'at' => $now->toDateTimeString(),
                         ];
+
+                        // // Ghi log
+                        // ActivityLog::create([
+                        //     'device' => $sch->feed_key,
+                        //     'message' => 'Turn on by schedule',
+                        //     'created_at' => $now
+                        // ]);
                     }
                 }
                 // 3. Nếu ngoài khoảng và đang ON (1) -> TẮT
@@ -115,6 +123,11 @@ class DeviceScheduleController extends Controller
                             'action' => 'off',
                             'at' => $now->toDateTimeString(),
                         ];
+                        // ActivityLog::create([
+                        //     'device' => $sch->feed_key,
+                        //     'message' => 'Turn off by schedule',
+                        //     'created_at' => $now
+                        // ]);
                     }
                 }
             });

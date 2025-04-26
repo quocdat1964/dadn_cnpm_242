@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Device;
 use Illuminate\Support\Facades\Http;
+use App\Models\ActivityLog; 
 
 class DeviceController extends Controller
 {
@@ -74,6 +75,11 @@ class DeviceController extends Controller
                 'status' => $value === 1 ? 'on' : 'off',
             ]
         );
+        // Ghi log
+        ActivityLog::create([
+            'device_name' => ucfirst($feedKey),
+            'message' => $value === 1 ? 'Turn on' : 'Turn off',
+        ]);
 
         return response()->json([
             'success' => true,
@@ -100,6 +106,20 @@ class DeviceController extends Controller
                 ->post("https://io.adafruit.com/api/v2/{$username}/feeds/{$feedKey}/data", [
                     'value' => 0
                 ]);
+                // Cập nhật trạng thái trong DB
+            if ($res->successful()) {
+                    Device::where('feed_key', $feedKey)->update([
+                        'status' => 'off'
+                    ]);
+                // Ghi log
+                ActivityLog::create([
+                    'device_name' => ucfirst($feedKey),  
+                    'message' => 'Turn off',
+                    'created_at' => now(),
+                ]);
+            }
+                
+            
             $results[$feedKey] = $res->successful() ? 'off' : 'error';
         }
 
@@ -127,6 +147,17 @@ class DeviceController extends Controller
             ])->post("https://io.adafruit.com/api/v2/{$username}/feeds/{$feedKey}/data", [
                         'value' => 1
                     ]);
+                    // Cập nhật trạng thái trong DB
+                if ($res->successful()) {
+                        Device::where('feed_key', $feedKey)->update([
+                            'status' => 'on'
+                        ]);
+                        ActivityLog::create([
+                            'device_name' => ucfirst($feedKey),  
+                            'message' => 'Turn on',
+                            'created_at' => now(),
+                        ]);
+                }
 
             $results[$feedKey] = $res->successful() ? 'on' : 'error';
         }
