@@ -1,5 +1,5 @@
 // src/pages/UserInfo.jsx
-import React, { useState, useEffect, Fragment } from 'react';
+import React, { useState, useEffect, Fragment, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import dayjs from 'dayjs';
 import {
@@ -58,6 +58,25 @@ const UserInfo = () => {
 
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const { token } = useAuth();
+    const fetchLogs = useCallback(async () => {
+        try {
+            const response = await fetch('http://127.0.0.1:8000/api/activity-logs');
+            if (!response.ok) throw new Error(`Lỗi ${response.status} khi lấy nhật ký hoạt động.`);
+            const data = await response.json();
+            if (data.success && Array.isArray(data.data)) {
+                return data.data.map(log => ({
+                    id: log.id, time: log.created_at,
+                    device: log.device_name, message: log.message
+                }));
+            } else {
+                throw new Error(data.message || "Không thể xử lý dữ liệu nhật ký hoạt động.");
+            }
+        } catch (error) {
+            console.error("Error in fetchLogs:", error);
+            if (error.message.includes('Failed to fetch')) throw new Error("Lỗi mạng khi lấy nhật ký hoạt động.");
+            throw error;
+        }
+    }, []);
     useEffect(() => {
         const fetchData = async () => {
             if (refreshTrigger === 0) {
@@ -65,7 +84,7 @@ const UserInfo = () => {
                 setUserData(null);
                 setActivityLogs([]);
             } else {
-                console.log("Refreshing data...");
+                console.log("Refreshing data (profile + initial logs)...");
             }
             setError(null);
             setSuccessMessage(null);
@@ -104,53 +123,56 @@ const UserInfo = () => {
                 }
             };
 
-            const fetchLogs = async () => {
-                try {
-                    const response = await fetch('http://127.0.0.1:8000/api/activity-logs');
-                    if (!response.ok) throw new Error(`Lỗi ${response.status} khi lấy nhật ký hoạt động.`);
-                    const data = await response.json();
-                    if (data.success && Array.isArray(data.data)) {
-                        return data.data.map(log => ({
-                            id: log.id, time: log.created_at,
-                            device: log.device_name, message: log.message
-                        }));
-                    } else {
-                        throw new Error(data.message || "Không thể xử lý dữ liệu nhật ký hoạt động.");
-                    }
-                } catch (error) {
-                    console.error("Error in fetchLogs:", error);
-                    if (error.message.includes('Failed to fetch')) throw new Error("Lỗi mạng khi lấy nhật ký hoạt động.");
-                    throw error;
-                }
-            };
-
             try {
-                const [profileData, logsData] = await Promise.all([
+
+                const [profileData, initialLogsData] = await Promise.all([
                     fetchProfile(),
-                    fetchLogs()
+                    fetchLogs() 
                 ]);
                 setUserData(profileData);
-                setActivityLogs(logsData);
+                setActivityLogs(initialLogsData);
             } catch (err) {
-                console.error("Failed to fetch data:", err);
-                setError(err.message || "Đã xảy ra lỗi khi tải dữ liệu.");
+                console.error("Failed to fetch initial data:", err);
+                setError(err.message || "Đã xảy ra lỗi khi tải dữ liệu ban đầu.");
                 if (refreshTrigger === 0) {
                     setUserData(null);
                     setActivityLogs([]);
                 }
             } finally {
-
                 if (refreshTrigger === 0) {
                     setLoading(false);
                 } else {
-                    console.log("Data refresh complete.");
+                    console.log("Profile and initial logs refresh complete.");
                 }
             }
         };
 
-        fetchData();
+        if (token) { 
+            fetchData();
+        } else {
+            setLoading(false); 
+            setError("Lỗi xác thực: Không tìm thấy token. Vui lòng đăng nhập lại.");
+            setUserData(null);
+            setActivityLogs([]);
+        }
 
-    }, [refreshTrigger]);
+    }, [refreshTrigger, token, fetchLogs]);
+
+    useEffect(() => {
+        const intervalId = setInterval(async () => {
+            try {
+                const latestLogs = await fetchLogs();
+                setActivityLogs(latestLogs); 
+            } catch (error) {
+                console.error("Failed to auto-refresh activity logs:", error.message);
+            }
+        }, 5000);
+
+        return () => {
+            clearInterval(intervalId);
+        };
+
+    }, [fetchLogs]);
     const handleEditClick = (section) => {
         if (!userData) return;
         setError(null);

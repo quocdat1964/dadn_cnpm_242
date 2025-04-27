@@ -361,8 +361,8 @@ export default function Devices() {
                     if (d[controlKey].isOn !== isOn) {
                         console.log(`Updating device ${controlKey} state via MQTT to ${isOn}`);
                          return {
-                             ...d,
-                             [controlKey]: { ...d[controlKey], isOn: isOn }
+                              ...d,
+                              [controlKey]: { ...d[controlKey], isOn: isOn }
                          };
                     }
                      return d;
@@ -402,14 +402,12 @@ export default function Devices() {
             return;
         }
 
-        // 1. OPTIMISTIC UPDATE (FOR USER ACTION)
         setDevices(currentDevices => ({
             ...currentDevices,
             [key]: { ...currentDevices[key], isOn: targetState }
         }));
         console.log(`Optimistic UI update for ${key}: set to ${targetState}`);
 
-        // 2. CALL API
         const url = 'http://127.0.0.1:8000/api/devices/control';
         const body = JSON.stringify({ feed_key: feedKey, value: apiValue });
 
@@ -420,12 +418,10 @@ export default function Devices() {
                 body: body
             });
 
-            // 3. HANDLE API RESULT
             if (!response.ok) {
                 const errorData = await response.json().catch(() => null);
                 const errorMessage = errorData?.message || `Lỗi ${response.status}`;
                 console.error(`API call failed: ${url} for ${key}, Status: ${response.status}. Rolling back UI.`);
-                // ROLLBACK
                 setDevices(currentDevices => ({
                     ...currentDevices,
                     [key]: { ...currentDevices[key], isOn: originalState }
@@ -437,7 +433,6 @@ export default function Devices() {
 
         } catch (error) {
             console.error(`Network or other error calling API ${url} for ${key}:`, error);
-            // ROLLBACK
             setDevices(currentDevices => ({
                 ...currentDevices,
                 [key]: { ...currentDevices[key], isOn: originalState }
@@ -446,13 +441,11 @@ export default function Devices() {
         }
     };
 
-    // Turn all (VẪN GIỮ NGUYÊN OPTIMISTIC UPDATE CHO HÀNH ĐỘNG USER)
     const allOn = Object.values(devices).every(d => d.isOn);
     const handleTurnAll = async () => {
         const originalDevices = JSON.parse(JSON.stringify(devices));
         const targetState = !allOn;
 
-        // 1. OPTIMISTIC UPDATE (FOR USER ACTION)
         setDevices(currentDevices => {
             const updatedDevices = { ...currentDevices };
             Object.keys(updatedDevices).forEach(key => {
@@ -462,7 +455,6 @@ export default function Devices() {
             return updatedDevices;
         });
 
-        // 2. CALL API
         const url = targetState
             ? 'http://127.0.0.1:8000/api/devices/turn-on-all'
             : 'http://127.0.0.1:8000/api/devices/turn-off-all';
@@ -470,12 +462,11 @@ export default function Devices() {
         try {
             const response = await fetch(url, { method: 'POST' });
 
-            // 3. HANDLE API RESULT
             if (!response.ok) {
                 const errorData = await response.json().catch(() => null);
                 const errorMessage = errorData?.message || `Lỗi ${response.status}`;
                 console.error(`API call failed: ${url}, Status: ${response.status}. Rolling back UI.`);
-                setDevices(originalDevices); // Rollback
+                setDevices(originalDevices);
                 alert(`Lỗi: Không thể ${targetState ? 'bật' : 'tắt'} tất cả thiết bị. ${errorMessage}. Trạng thái giao diện đã được khôi phục.`);
                 return;
             }
@@ -483,12 +474,11 @@ export default function Devices() {
 
         } catch (error) {
             console.error(`Network or other error calling API ${url}:`, error);
-            setDevices(originalDevices); // Rollback
+            setDevices(originalDevices);
             alert(`Lỗi mạng hoặc lỗi khác khi ${targetState ? 'bật' : 'tắt'} tất cả thiết bị: ${error.message}. Trạng thái giao diện đã được khôi phục.`);
         }
     };
 
-    // Loading indicator
     if (loading) {
         return (
             <div className="flex w-full h-full items-center justify-center bg-gray-100">
@@ -499,7 +489,6 @@ export default function Devices() {
     }
     return (
         <Fragment>
-            {/* HEADER */}
             <header className="flex items-center justify-between p-5 border-b bg-white static top-0 z-20 shadow-sm">
                 <h1 className="text-2xl font-bold text-gray-800">SMART TOMATO FARM</h1>
                 <div className="flex items-center space-x-4">
@@ -519,9 +508,7 @@ export default function Devices() {
                 </div>
             </header>
 
-            {/* MAIN */}
             <div className="p-6 flex-grow bg-gray-50">
-                {/* Manual Control Section */}
                 <section className="mb-8">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-xl font-semibold text-gray-700">Điều khiển thủ công</h2>
@@ -535,7 +522,7 @@ export default function Devices() {
                                 statusText={d.statusText}
                                 isManual
                                 isDeviceOn={d.isOn}
-                                onToggleChange={() => handleToggle(key)} 
+                                onToggleChange={() => handleToggle(key)}
                                 imageUrl={d.type === 'pumper' ? pumpImg : ledRgb}
                                 Icon={d.type === 'light' ? FiZap : FiDroplet}
                                 imageClassName="w-16 h-16 mx-auto mb-2 opacity-70"
@@ -544,7 +531,6 @@ export default function Devices() {
                     </div>
                 </section>
 
-                {/* Scheduling Section */}
                 <section className="mb-8">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-xl font-semibold text-gray-700">
@@ -576,7 +562,6 @@ export default function Devices() {
                             <ScheduleEntry
                                 key={sch.id}
                                 id={sch.id}
-
                                 deviceName={Object.values(devices).find(d => CONTROL_FEEDS[d.id] === sch.feed_key)?.name || sch.feed_key}
                                 icon={sch.feed_key === CONTROL_FEEDS.light1 ? FiZap : FiDroplet}
                                 startTime={dayjs(sch.start_at).format('HH:mm')}
@@ -584,7 +569,7 @@ export default function Devices() {
                                 isActive={sch.enabled}
                                 onToggle={!editingSchedulesMode ? () => handleToggleSchedule(sch.id) : undefined}
                                 onDelete={editingSchedulesMode ? () => handleDeleteSchedule(sch.id) : undefined}
-                                onEdit={editingSchedulesMode ? () => handleEditSchedule(sch) : undefined}
+                                onEdit={editingSchedulesMode ? () => handleDeleteSchedule(sch.id) : undefined}
                             />
                         )) : (
                             <p className="text-center text-gray-500 py-4">Chưa có lịch hẹn nào được tạo.</p>
@@ -592,7 +577,6 @@ export default function Devices() {
                     </div>
                 </section>
 
-                {/* Turn On/Off All */}
                 <div className="mt-auto pt-6 text-center">
                     <button
                         onClick={handleTurnAll}
@@ -607,7 +591,6 @@ export default function Devices() {
                 </div>
             </div>
 
-            {/* Settings Modal */}
             <SettingsModal
                 isOpen={isSettingsOpen}
                 onClose={() => setIsSettingsOpen(false)}
@@ -616,10 +599,8 @@ export default function Devices() {
                 currentSettings={editingDeviceKey && devices[editingDeviceKey]?.settings}
             />
 
-            {/* Add/Edit Schedule Modal */}
             <Transition appear show={showScheduleModal} as={Fragment}>
                 <Dialog as="div" className="relative z-30" onClose={() => setShowScheduleModal(false)}>
-                    {/* Backdrop */}
                     <Transition.Child
                         as={Fragment}
                         enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100"
@@ -628,7 +609,6 @@ export default function Devices() {
                         <div className="fixed inset-0 bg-black bg-opacity-30" />
                     </Transition.Child>
 
-                    {/* Modal Content */}
                     <div className="fixed inset-0 overflow-y-auto">
                         <div className="flex min-h-full items-center justify-center p-4 text-center">
                             <Transition.Child
@@ -642,7 +622,6 @@ export default function Devices() {
                                     </Dialog.Title>
                                     <form onSubmit={(e) => { e.preventDefault(); submitSchedule(); }}>
                                         <div className="space-y-4">
-                                            {/* Device Select */}
                                             <div>
                                                 <label htmlFor="schedule-device" className="block text-sm font-medium text-gray-700 mb-1">Thiết bị</label>
                                                 <select
@@ -660,7 +639,6 @@ export default function Devices() {
                                                 </select>
                                             </div>
 
-                                            {/* Start Time */}
                                             <div>
                                                 <label htmlFor="start_at" className="block text-sm font-medium text-gray-700 mb-1">Thời gian bắt đầu</label>
                                                 <input
@@ -673,7 +651,6 @@ export default function Devices() {
                                                 />
                                             </div>
 
-                                            {/* End Time */}
                                             <div>
                                                 <label htmlFor="end_at" className="block text-sm font-medium text-gray-700 mb-1">Thời gian kết thúc</label>
                                                 <input
@@ -690,7 +667,6 @@ export default function Devices() {
                                             </div>
                                         </div>
 
-                                        {/* Buttons */}
                                         <div className="mt-6 flex justify-end space-x-3">
                                             <button
                                                 type="button"
@@ -715,7 +691,6 @@ export default function Devices() {
                 </Dialog>
             </Transition>
 
-            {/* Help Modal */}
             <HelperModal
                 isOpen={showHelp}
                 onClose={() => setShowHelp(false)}
@@ -729,7 +704,7 @@ export default function Devices() {
                         <li>Component sẽ tự động kiểm tra các lịch hẹn đang <code className='text-xs bg-green-100 px-1 rounded'>active</code> mỗi phút và gửi lệnh bật/tắt thiết bị tương ứng nếu thời gian hiện tại khớp với lịch trình.</li>
                         <li>Bấm vào một lịch hẹn (khi không ở chế độ sửa) để bật/tắt lịch hẹn đó (sử dụng <code className="text-xs">PATCH /toggle</code> API) - việc này chỉ kích hoạt/hủy kích hoạt lịch hẹn, không trực tiếp bật/tắt thiết bị ngay lập tức.</li>
                         <li>Bấm nút <FiEdit2 className="inline text-gray-600" /> để vào <strong>Chế độ sửa</strong>.</li>
-                        <li>Khi ở Chế độ sửa: Bấm <FiEdit2 className="inline text-red-600" /> trên lịch hẹn để sửa, <FiTrash2 className="inline text-red-600" /> để xóa. Bấm lại nút <FiEdit2 className="inline text-red-600" /> ở góc trên để thoát chế độ sửa.</li>
+                        <li>Khi ở Chế độ sửa: Bấm <FiEdit2 className="inline text-red-600" /> (cây bút) trên lịch hẹn để <strong>xóa</strong> lịch hẹn đó. Bấm lại nút <FiEdit2 className="inline text-red-600" /> ở góc trên để thoát chế độ sửa.</li>
                         <li>Bấm nút <FiPlus className="inline text-blue-600" /> (khi không ở chế độ sửa) để thêm lịch hẹn mới (sử dụng <code className="text-xs">POST /device-schedules</code> API).</li>
                     </ul>
                     <p><strong><FiPower className="inline mr-1" /> Bật/Tắt tất cả:</strong> Nút ở cuối trang dùng để bật hoặc tắt đồng thời tất cả các thiết bị trong phần điều khiển thủ công.</p>

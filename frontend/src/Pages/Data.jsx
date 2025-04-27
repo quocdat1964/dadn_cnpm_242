@@ -79,14 +79,18 @@ export default function Data() {
     };
 
     // Fetch sensor charts and compute PHI
-    const fetchData = useCallback(async () => {
-        setLoading(true);
+    const fetchData = useCallback(async (isAutoRefresh = false) => {
+        let manuallyTriggeredLoad = false;
+        if (!isAutoRefresh) {
+            setLoading(true);
+            manuallyTriggeredLoad = true;
+        }
         setError(null);
 
         const s = dayjs(startTime), e = dayjs(endTime);
-        if (!s.isValid() || !e.isValid()) {
-            setError('Invalid start or end time');
-            setLoading(false);
+        if (!s.isValid() || !e.isValid() || !USERNAME || !AIO_KEY) {
+            setError('Invalid time range or missing Adafruit credentials.');
+            if (manuallyTriggeredLoad) setLoading(false);
             return;
         }
         const startISO = s.toISOString();
@@ -95,54 +99,65 @@ export default function Data() {
         try {
             const results = await Promise.all(sensorTypes.map(async sensor => {
                 const feedKey = feedKeyMap[sensor.id];
+                if (!feedKey) throw new Error(`Missing feed key for sensor: ${sensor.id}`);
                 const url = new URL(`https://io.adafruit.com/api/v2/${USERNAME}/feeds/${feedKey}/data/chart`);
                 url.searchParams.set('start_time', startISO);
                 url.searchParams.set('end_time', endISO);
                 url.searchParams.set('field', 'avg');
-
-                const res = await fetch(url, {
-                    headers: {
-                        'X-AIO-Key': AIO_KEY,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const res = await fetch(url, { headers: { 'X-AIO-Key': AIO_KEY, 'Content-Type': 'application/json' } });
+                if (!res.ok) {
+                    let errorBody = '';
+                    try { errorBody = await res.text(); } catch (e) { }
+                    console.error(`Adafruit API Error for ${feedKey}: ${res.status} ${res.statusText}`, errorBody);
+                    throw new Error(`Failed to fetch ${sensor.name} data: ${res.status} ${res.statusText}`);
+                }
                 const json = await res.json();
-
-                const labels = json.data.map(r => dayjs(r[0]).format('DD/MM/YYYY HH:mm'));
-                const values = json.data.map(r => parseFloat(r[1]));
+                if (!json || !Array.isArray(json.data)) {
+                    console.warn(`Unexpected data structure for ${sensor.name}:`, json);
+                    return { id: sensor.id, labels: [], values: [] };
+                }
+                const labels = json.data.map(r => dayjs(r[0]).format('DD/MM HH:mm'));
+                const values = json.data.map(r => parseFloat(r[1]) || 0);
                 return { id: sensor.id, labels, values };
             }));
 
-            // Pivot results
             const byId = results.reduce((acc, { id, labels, values }) => {
                 acc[id] = { labels, values };
                 return acc;
             }, {});
             setChartData(byId);
-
-            // Compute PHI
-            if (results.length) {
-                const ts = results[0].labels;
-                const phis = ts.map((_, i) => {
-                    const t = byId.temperature.values[i] || 0;
-                    const h = byId.humidity.values[i] || 0;
-                    const sm = byId.soil_moisture.values[i] || 0;
-                    const l = byId.light.values[i] || 0;
-                    return computeTomatoPHI({ temperature: t, airHumidity: h, soilMoisture: sm, light: l });
-                });
-                setPhiData({ labels: ts, values: phis });
+            if (results.length > 0 && byId.temperature && byId.humidity && byId.soil_moisture && byId.light) {
+                const baseLabels = byId.temperature.labels;
+                const numDataPoints = baseLabels.length;
+                if (numDataPoints > 0) {
+                    const phis = [];
+                    const phiLabels = [];
+                    for (let i = 0; i < numDataPoints; i++) {
+                        const t = byId.temperature.values[i] ?? 0;
+                        const h = byId.humidity.values[i] ?? 0;
+                        const sm = byId.soil_moisture.values[i] ?? 0;
+                        const l = byId.light.values[i] ?? 0;
+                        phis.push(computeTomatoPHI({ temperature: t, airHumidity: h, soilMoisture: sm, light: l }));
+                        phiLabels.push(baseLabels[i]);
+                    }
+                    setPhiData({ labels: phiLabels, values: phis });
+                } else {
+                    setPhiData({ labels: [], values: [] });
+                }
+            } else {
+                setPhiData({ labels: [], values: [] });
             }
 
         } catch (err) {
-            console.error(err);
-            setError(err.message);
+            console.error("Error fetching data:", err);
+            setError(err.message || 'An unknown error occurred while fetching data.');
         } finally {
-            setLoading(false);
+            if (manuallyTriggeredLoad) {
+                setLoading(false);
+            }
         }
     }, [startTime, endTime]);
 
-    // Reset start/end when granularity changes (except 'range')
     useEffect(() => {
         const n = dayjs();
         let s, e;
@@ -156,6 +171,16 @@ export default function Data() {
     }, [granularity]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
+
+    useEffect(() => {
+        const intervalId = setInterval(() => {
+            fetchData(true);
+        }, 10000);
+        return () => {
+            clearInterval(intervalId);
+
+        };
+    }, [fetchData]);
 
     if (loading) {
         return (
