@@ -1,76 +1,111 @@
 // src/context/AuthContext.js
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import axios from 'axios'; // Hoặc dùng fetch
+import axios from 'axios';
 
 const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null); // Lưu thông tin user nếu đăng nhập thành công
-    const [token, setToken] = useState(localStorage.getItem('authToken') || null); // Lấy token từ localStorage nếu có
-    const [loading, setLoading] = useState(true); // State loading để kiểm tra trạng thái đăng nhập ban đầu
+const API_BASE_URL = 'http://127.0.0.1:8000/api';
 
-    // Hàm này sẽ được gọi khi component mount để kiểm tra token cũ
+export const AuthProvider = ({ children }) => {
+    const [user, setUser] = useState(null);
+    const [token, setToken] = useState(localStorage.getItem('authToken') || null);
+    const [loading, setLoading] = useState(true);
+
     const verifyToken = useCallback(async () => {
         const storedToken = localStorage.getItem('authToken');
         if (storedToken) {
-            console.log("Verifying stored token...");
-            // Giả sử token cũ vẫn hợp lệ và lấy thông tin user giả lập
-             await new Promise(resolve => setTimeout(resolve, 500)); // Giả lập gọi API
-             const mockUser = { id: 1, name: 'Người dùng đã lưu', email: 'saved@example.com' }; // Thông tin user giả lập
-             setUser(mockUser);
-             setToken(storedToken);
-             axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
-             console.log("Token verified (mock), user set:", mockUser);
+            console.log("Verifying stored token (using current mock logic)...");
+            try {
+                 await new Promise(resolve => setTimeout(resolve, 500));
+                 const mockUser = JSON.parse(localStorage.getItem('authUser')) || { id: 1, name: 'Người dùng đã lưu' };
+                 setUser(mockUser);
+                 setToken(storedToken);
+                 axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+                 console.log("Token verified (mock), user set:", mockUser);
 
+            } catch (error) {
+                console.error("Token verification failed:", error);
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('authUser');
+                setToken(null);
+                setUser(null);
+                delete axios.defaults.headers.common['Authorization'];
+            }
         } else {
             console.log("No stored token found.");
         }
-        setLoading(false); 
+        setLoading(false);
     }, []);
+
 
     useEffect(() => {
         verifyToken();
     }, [verifyToken]);
 
-    // Hàm đăng nhập
     const login = async (username, password) => {
-        console.log("Attempting login with:", { username });
+        console.log("Attempting login via API with:", { username });
         try {
-            await new Promise(resolve => setTimeout(resolve, 1000)); 
-            // Giả sử đăng nhập thành công nếu username/password là 'admin'/'admin'
-            if (username === 'admin' && password === 'admin') {
-                const mockToken = 'fake-jwt-token-' + Date.now();
-                const mockUser = { id: 1, name: 'Admin User', email: 'admin@example.com' };
+            const response = await axios.post(`${API_BASE_URL}/login`, {
+                username: username,
+                password: password
+            });
 
-                localStorage.setItem('authToken', mockToken);
-                setToken(mockToken);
-                setUser(mockUser);
-                axios.defaults.headers.common['Authorization'] = `Bearer ${mockToken}`;
-                console.log("Login successful (mock)");
-                return mockUser;
+            console.log("API Login Response:", response);
+            if (response.data && response.data.access_token && response.data.user) {
+                const receivedToken = response.data.access_token; 
+                const receivedUser = response.data.user;         
+                const tokenType = response.data.token_type || 'Bearer'; 
+
+                localStorage.setItem('authToken', receivedToken);
+                localStorage.setItem('authUser', JSON.stringify(receivedUser));
+
+                setToken(receivedToken);
+                setUser(receivedUser);
+
+                axios.defaults.headers.common['Authorization'] = `${tokenType} ${receivedToken}`;
+
+                console.log("Login successful via API, token stored, user set:", receivedUser);
+                console.log("Authorization header set with type:", tokenType);
+
+                return receivedUser;
             } else {
-                throw new Error("Tên đăng nhập hoặc mật khẩu không đúng.");
+
+                console.error("Login API responded successfully but without expected data (access_token or user).", response.data);
+                throw new Error(response.data?.message || "Phản hồi từ máy chủ không hợp lệ sau khi đăng nhập.");
             }
 
         } catch (err) {
             console.error("Login failed:", err);
-            const errorMessage = err.response?.data?.message || err.message || "Đã xảy ra lỗi khi đăng nhập.";
+
+            let errorMessage = "Đã xảy ra lỗi khi đăng nhập.";
+             if (err.response) {
+                 errorMessage = err.response.data?.message || err.response.data?.detail || `Lỗi ${err.response.status}`;
+                 if(err.response.status === 401 || err.response.status === 400 || err.response.status === 422) { 
+                     errorMessage = err.response.data?.message || err.response.data?.detail || "Tên đăng nhập hoặc mật khẩu không chính xác.";
+                 }
+             } else if (err.request) {
+                 errorMessage = "Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại.";
+             } else {
+                 errorMessage = err.message;
+             }
             throw new Error(errorMessage);
         }
     };
+
     const logout = () => {
         console.log("Logging out...");
         localStorage.removeItem('authToken');
+        localStorage.removeItem('authUser');
         setUser(null);
         setToken(null);
         delete axios.defaults.headers.common['Authorization'];
+        console.log("Logged out, token and user removed from storage.");
     };
-
     const value = {
         user,
         token,
-        isAuthenticated: !!token, 
-        loading, 
+        isAuthenticated: !!token,
+        loading,
         login,
         logout
     };

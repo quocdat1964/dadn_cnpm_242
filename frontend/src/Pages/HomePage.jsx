@@ -15,7 +15,7 @@ import {
   FiSun,
   FiEdit2,
   FiLoader,
-  FiHelpCircle      // thêm icon Help
+  FiHelpCircle
 } from 'react-icons/fi';
 
 const USERNAME = process.env.REACT_APP_AIO_USERNAME;
@@ -84,7 +84,7 @@ const HomePage = () => {
       try {
         const results = await Promise.all(feeds.map(({ key, feed_id }) =>
           fetch('http://127.0.0.1:8000/api/environment/evaluate', {
-            method: 'POST',
+            method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ feed_id })
           })
@@ -179,7 +179,7 @@ const HomePage = () => {
       {/* Header */}
       <header className="flex items-center justify-between p-5 bg-white border-b sticky top-0 z-20">
         <div>
-          <h1 className="text-2xl font-bold">Hello Danny, đây là trang trại của bạn:</h1>
+          <h1 className="text-2xl font-bold">Đây là thông tin khu vườn của bạn ngày hôm nay:</h1>
           <p className="text-sm text-gray-500">{today}</p>
         </div>
         <div className="flex space-x-4 items-center">
